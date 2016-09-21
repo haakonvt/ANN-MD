@@ -6,5 +6,5 @@ This code is largely stolen/borrowed from:
 
 ### What is this?
 This code is a real-world data test of a simple neural network that tries to
-find the formula used by the webiste dxomark.com when deciding scores for different
+find the formula used by the website dxomark.com when deciding scores for different
 camera sensors.

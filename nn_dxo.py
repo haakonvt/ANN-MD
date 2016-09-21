@@ -10,7 +10,6 @@ import os
 import shutil
 import matplotlib.pyplot as plt
 
-#import neuralNetworkModel as nn
 import neuralNetworkXavier as nnx
 
 # Data: https://www.dxomark.com/cameras#hideAdvancedOptions=false&viewMode=list&yDataType=rankDxo
@@ -110,19 +109,22 @@ def train_neural_network(x,epochs, nNodes,hiddenLayers, plot=False, no_print=Fal
             if no_print:
                 pass
             else:
-                if (epoch+1)%int(numberOfEpochs/100.) == 0:
-                    print 'Epoch %5d out of %5d trainloss/N: %10g, testloss/N: %10g' % \
-                          (epoch+1, numberOfEpochs, epochLoss/float(trainSize), testCost/float(testSize))
+                pass
+                #if (epoch+1)%int(numberOfEpochs/100.) == 0:
+                #    print 'Epoch %5d out of %5d trainloss/N: %10g, testloss/N: %10g' % \
+                #          (epoch+1, numberOfEpochs, epochLoss/float(trainSize), testCost/float(testSize))
 
             """if epochLoss < bestTrainLoss and epochLoss/float(trainSize) < 20.0:
                 bestTrainLoss = epochLoss"""
-            if testCost < bestTestLoss and testCost//float(testSize) < 20.0:
+            if testCost < bestTestLoss and testCost//float(testSize) < 1.0:
                 bestTestLoss = testCost
                 bestEpochTestLoss = epoch
+                print 'Epoch %5d out of %5d trainloss/N: %10g, testloss/N: %10g' % \
+                      (epoch+1, numberOfEpochs, epochLoss/float(trainSize), testCost/float(testSize))
                 if plot:
                     yy = sess.run(prediction, feed_dict={x: xTest})
                     error = yy-yTest
-                    break
+                    #break
 
         if plot:
             #yy = sess.run(prediction, feed_dict={x: xTest})
@@ -147,6 +149,7 @@ print "---------------------------------------"
 learning_rate_choice = 0.001 # Default for AdamOptimizer is 0.001
 testCases = 0;
 print "Learning rate:", learning_rate_choice
+print "(It might take some time before anything meaningful is printed)"
 
 epochlossPerNPrev = 1e100   # "Guaranteed" worse than anything
 nNodesBest = 0; hLBest = 0; epochBest = 0
