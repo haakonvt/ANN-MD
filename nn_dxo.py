@@ -78,11 +78,10 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, plot=False, no_print=F
         saver = tf.train.Saver(weights + biases, max_to_keep=None)
         sess.run(tf.initialize_all_variables())
         if loadFlag:
-            saver.restore(sess, loadFileName)
-            print 'Model restored'
+            loadFileName = findLoadFileName()
+            #saver.restore(sess, loadFileName)
 
-
-        bestTrainLoss = 1E100; bestTestLoss = 1E100
+        bestTrainLoss = 1E100; bestTestLoss = 1E100 #
         # loop through epocs
         for epoch in range(numberOfEpochs):
             # loop through batches and cover whole data set for each epoch
@@ -109,6 +108,25 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, plot=False, no_print=F
                     yy = sess.run(prediction, feed_dict={x: xTest})
                     error = yy-yTest
                     #break"""
+                    
+            # If saving is enabled, save the graph variables ('w', 'b') and dump
+            # some info about the training so far to SavedModels/<this run>/meta.dat.
+            if saveFlag:
+                if epoch == 0:
+                    saveEpochNumber = 0
+                    with open(saveMetaName, 'w') as outFile:
+                        outStr = '# epochs: %d train: %d, test: %d, batch: %d, nodes: %d, layers: %d' % \
+                                  (numberOfEpochs, trainSize, testSize, batchSize, nNodes, hiddenLayers)
+                        outFile.write(outStr + '\n')
+                else:
+                    with open(saveMetaName, 'a') as outFile:
+                        outStr = '%g %g' % (epochLoss/float(trainSize), testCost/float(testSize))
+                        outFile.write(outStr + '\n')
+
+                if epoch % 10 == 0:
+                    saveFileName = saveDirName + '/' 'ckpt'
+                    saver.save(sess, saveFileName, global_step=saveEpochNumber)
+                    saveEpochNumber = saveEpochNumber + 1
 
         if plot:
             yy = sess.run(prediction, feed_dict={x: xTest})
@@ -127,11 +145,32 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, plot=False, no_print=F
     return weights, biases, neurons, epochLoss/trainSize
 
 
+def findLoadFileName():
+    if os.path.isdir("SavedRuns"):
+        file_list = []
+        for a_file in os.listdir("SavedRuns"):
+            if a_file[0] == ".": # Ignore hidden files
+                pass
+            else:
+                file_list.append(int(a_file[3:-4]))
+        if len(file_list) == 0:
+            print "No previous runs exits. Exiting..."; sys.exit()
+        newest_file = "run" + str(np.max(file_list)) + ".dat"
+        print 'Model restored from file:', loadFileName
+        return newest_file
+    else:
+        os.makedirs("SavedRuns")
+        print "Created 'SavedRuns'-directory. No previous runs exits. Exiting..."; sys.exit()
+
+
+
 #--------------#
 ##### main #####
 #--------------#
 raw_data = np.load("raw_data_dxo.npy")
 cmdArgs  = len(sys.argv)-1
+loadFileName = None
+saveFileName = None
 if cmdArgs < 1: # No input from user, running default
     pass
 else: # We need to parse the command line args
@@ -144,7 +183,7 @@ else: # We need to parse the command line args
             saveFlag = True
             print "The neural network (weights & biases) will be saved periodically"
         if arg == "-load":
-            loadFlag = True
+            loadFlag     = True
             print "Loading latest neural network as starting point"
         if arg == "-plot":
             loadFlag = True
@@ -153,23 +192,24 @@ else: # We need to parse the command line args
             sys.exit()
 
 # Pick out test data randomly from the data
+totalDataPoints = raw_data.shape[0]
 randRows = np.random.choice(totalDataPoints, 80, replace=False)
 global xRand
-xRand = x[randRows,:]
+xRand = raw_data[randRows,:]
 
 # Pick out the rest for training data
 leftoverRows = [i for i in range(totalDataPoints) if i not in randRows]
 
 global trainData
-trainData = x[leftoverRows,:]
+trainData = raw_data[leftoverRows,:]
 np.random.shuffle(trainData) # Shuffle rows of the data to minimize impact of ordering of the data
 
 # reset so that variables are not given new names
 tf.reset_default_graph()
 
 # number of samples
-trainSize = len(trainData)
-batchSize = len(trainData)
+trainSize = totalDataPoints
+batchSize = totalDataPoints
 testSize  = 80 # Out of a hat, we found the number 80
 
 # get real world input
@@ -200,7 +240,7 @@ for hiddenLayers in [10]:
         for epochs in [100000]:
             testCases += 1
             weights, biases, neurons, epochlossPerN = train_neural_network(x, epochs, \
-                    nNodes, hiddenLayers,plot=plotFlag,no_print=False,learning_rate_choice=learning_rate_choice)
+                    nNodes, hiddenLayers, plot=plotFlag,no_print=False,learning_rate_choice=learning_rate_choice)
             print "\nHid.layers: %2.d, nodes/l: %2.d, epochs: %d, loss/N: %f" %(hiddenLayers,nNodes,epochs,epochlossPerN)
             if epochlossPerN < epochlossPerNPrev:
                 epochlossPerNPrev = epochlossPerN
