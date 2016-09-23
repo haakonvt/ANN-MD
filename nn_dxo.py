@@ -88,27 +88,40 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, plot=False, no_print=F
             _, epochLoss = sess.run([optimizer, cost], feed_dict={x: xTrain, y: yTrain})
 
             # compute test set loss
+            # THIS IS MAYBE USED TO TRAIN?? Gotta check!!
             _, testCost = sess.run([optimizer, cost], feed_dict={x: xTest, y: yTest})
 
+            triggerNewLine = False
             if no_print:
                 pass
             else:
-                if (epoch+1)%int(numberOfEpochs/100.) == 0:
-                    print 'Epoch %5d out of %5d trainloss/N: %10g, testloss/N: %10g' % \
-                          (epoch+1, numberOfEpochs, epochLoss/float(trainSize), testCost/float(testSize))
+                if (epoch+1)%int(numberOfEpochs/400.) == 0:
+                    triggerNewLine = True
+                    """sys.stdout.write("\rEpoch %5d out of %5d trainloss/N: %10g, testloss/N: %10g" % \
+                          (epoch+1, numberOfEpochs, epochLoss/float(trainSize), testCost/float(testSize)))
+                    sys.stdout.flush()"""
 
             """if epochLoss < bestTrainLoss and epochLoss/float(trainSize) < 20.0:
                 bestTrainLoss = epochLoss"""
-            """if testCost < bestTestLoss and testCost//float(testSize) < 1.0:
+            if testCost < bestTestLoss: # and testCost//float(testSize) < 1.0:
                 bestTestLoss = testCost
                 bestEpochTestLoss = epoch
-                print 'Epoch %5d out of %5d trainloss/N: %10g, testloss/N: %10g' % \
-                      (epoch+1, numberOfEpochs, epochLoss/float(trainSize), testCost/float(testSize))
+                sys.stdout.write('\rEpoch %5d out of %5d trainloss/N: %10g, testloss/N: %10g' % \
+                      (epoch+1, numberOfEpochs, epochLoss/float(trainSize), testCost/float(testSize)))
+                sys.stdout.flush()
+                if triggerNewLine:
+                    sys.stdout.write('\n\rEpoch %5d out of %5d trainloss/N: %10g, testloss/N: %10g' % \
+                          (epoch+1, numberOfEpochs, epochLoss/float(trainSize), testCost/float(testSize)))
+                    sys.stdout.flush()
+                    triggerNewLine = False
+
                 if plot:
-                    yy = sess.run(prediction, feed_dict={x: xTest})
-                    error = yy-yTest
-                    #break"""
-                    
+                    yy     = sess.run(prediction, feed_dict={x: xTest})
+                    error  = yy-yTest
+                    yy2    = sess.run(prediction, feed_dict={x: xTrain})
+                    error2 = yy2-yTrain
+                    #break
+
             # If saving is enabled, save the graph variables ('w', 'b') and dump
             # some info about the training so far to SavedModels/<this run>/meta.dat.
             if saveFlag:
@@ -129,16 +142,28 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, plot=False, no_print=F
                     saveEpochNumber = saveEpochNumber + 1
 
         if plot:
-            yy = sess.run(prediction, feed_dict={x: xTest})
-            error = yy-yTest
-            try:
-                error = yy-yTest
-            except:
-                print "To plot: Run for more epochs (maybe 100K?)! Error is too large!"; sys.exit()
+            print "\nResults for test data:"
+            #yy = sess.run(prediction, feed_dict={x: xTest})
+            #error = yy-yTest
+            accuracy = np.int_(np.round(error)) # 0 means correct guess
+            perfResPercent = (len(accuracy)-len(np.nonzero(accuracy)[0]))*100.0/len(accuracy)
+            print "Accuracy of perfect predictions: %.1f %%" %perfResPercent
+            print np.sort(np.transpose(np.abs(accuracy)))
             plt.hist(error,bins=13)
             plt.xlabel('Test case (number)')
             plt.ylabel('Error: Prediciton - Exact answer')
-            np.savetxt("nndxo_err.dat",(yy, yTest, error))
+            np.savetxt("nndxo_err_test.dat",(yy, yTest, error))
+            plt.show()
+
+            print "Results for train data:"
+            accuracy = np.int_(np.round(error2)) # 0 means correct guess
+            perfResPercent = (len(accuracy)-len(np.nonzero(accuracy)[0]))*100.0/len(accuracy)
+            print "Accuracy of perfect predictions: %.1f %%" %perfResPercent
+            print np.sort(np.transpose(np.abs(accuracy)))
+            plt.hist(error2,bins=13)
+            plt.xlabel('')
+            plt.ylabel('Error: round(Prediciton - Exact answer)')
+            np.savetxt("nndxo_err_train.dat",(yy2, yTrain, error2))
             plt.show()
 
 
@@ -169,13 +194,12 @@ def findLoadFileName():
 #--------------#
 raw_data = np.load("raw_data_dxo.npy")
 cmdArgs  = len(sys.argv)-1
-loadFileName = None
-saveFileName = None
+loadFileName = None; saveFileName = None
+global saveFlag; global loadFlag; global plotFlag
+saveFlag, loadFlag, plotFlag = False, False, False
 if cmdArgs < 1: # No input from user, running default
     pass
 else: # We need to parse the command line args
-    global saveFlag; global loadFlag; global plotFlag
-    saveFlag, loadFlag, plotFlag = False, False, False
     for argIndex in range(1,cmdArgs+1):
         #print "Index:",argIndex, "content:", sys.argv[argIndex]
         arg = sys.argv[argIndex]
@@ -186,7 +210,8 @@ else: # We need to parse the command line args
             loadFlag     = True
             print "Loading latest neural network as starting point"
         if arg == "-plot":
-            loadFlag = True
+            plotFlag = True
+            print "Will plot best prediction after the simulation"
         if arg in ["h","help","-h","-help","--h","--help"]:
             print "Command line arguments possible: -save, -load and -plot. Exiting..."
             sys.exit()
@@ -208,14 +233,15 @@ np.random.shuffle(trainData) # Shuffle rows of the data to minimize impact of or
 tf.reset_default_graph()
 
 # number of samples
-trainSize = totalDataPoints
-batchSize = totalDataPoints
 testSize  = 80 # Out of a hat, we found the number 80
+trainSize = totalDataPoints - testSize
 
 # get real world input
 #xTrain, yTrain, xTest, yTest = functionData(trainSize,testSize)
 # get random input
-xTrain, yTrain, xTest, yTest = functionDataCreated(trainSize,testSize)
+#xTrain, yTrain, xTest, yTest = functionDataCreated(trainSize,testSize)
+# Test with way more data
+xTrain, yTrain, xTest, yTest = functionDataCreated(2000,700)
 
 # number of inputs and outputs
 inputs  = 3
@@ -237,7 +263,7 @@ epochlossPerNPrev = 1e100   # "Guaranteed" worse than anything
 nNodesBest = 0; hLBest = 0; epochBest = 0
 for hiddenLayers in [10]:
     for nNodes in [12]:
-        for epochs in [100000]:
+        for epochs in [50000]:
             testCases += 1
             weights, biases, neurons, epochlossPerN = train_neural_network(x, epochs, \
                     nNodes, hiddenLayers, plot=plotFlag,no_print=False,learning_rate_choice=learning_rate_choice)
