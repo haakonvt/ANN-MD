@@ -95,7 +95,7 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, plot=False, no_print=F
             if no_print:
                 pass
             else:
-                if (epoch+1)%int(numberOfEpochs/400.) == 0:
+                if (epoch+1)%int(numberOfEpochs/800.) == 0:
                     triggerNewLine = True
                     """sys.stdout.write("\rEpoch %5d out of %5d trainloss/N: %10g, testloss/N: %10g" % \
                           (epoch+1, numberOfEpochs, epochLoss/float(trainSize), testCost/float(testSize)))
@@ -188,12 +188,23 @@ def findLoadFileName():
         print "Created 'SavedRuns'-directory. No previous runs exits. Exiting..."; sys.exit()
 
 
+def isinteger(x):
+    try:
+        test = np.equal(np.mod(x, 1), 0)
+    except:
+        try:
+            test = np.equal(np.mod(int(x), 1), 0)
+        except:
+            return False
+    return test
+
 
 #--------------#
 ##### main #####
 #--------------#
 raw_data = np.load("raw_data_dxo.npy")
 cmdArgs  = len(sys.argv)-1
+totalEpochList = [1000]
 loadFileName = None; saveFileName = None
 global saveFlag; global loadFlag; global plotFlag
 saveFlag, loadFlag, plotFlag = False, False, False
@@ -203,6 +214,10 @@ else: # We need to parse the command line args
     for argIndex in range(1,cmdArgs+1):
         #print "Index:",argIndex, "content:", sys.argv[argIndex]
         arg = sys.argv[argIndex]
+        if isinteger(arg):
+            if int(arg)<800:
+                print "Number of epochs must be greater than 800. Exiting..."; sys.exit()
+            totalEpochList = [ (int(arg)) ]
         if arg == "-save":
             saveFlag = True
             print "The neural network (weights & biases) will be saved periodically"
@@ -213,7 +228,9 @@ else: # We need to parse the command line args
             plotFlag = True
             print "Will plot best prediction after the simulation"
         if arg in ["h","help","-h","-help","--h","--help"]:
-            print "Command line arguments possible: -save, -load and -plot. Exiting..."
+            print "Command line arguments possible: -save, -load and -plot."
+            print "Also, you can specify the number of epochs (>800). Ex.:"
+            print ">>> python nn_dxo.py 5000 -load -plot"
             sys.exit()
 
 # Pick out test data randomly from the data
@@ -263,7 +280,7 @@ epochlossPerNPrev = 1e100   # "Guaranteed" worse than anything
 nNodesBest = 0; hLBest = 0; epochBest = 0
 for hiddenLayers in [10]:
     for nNodes in [12]:
-        for epochs in [50000]:
+        for epochs in totalEpochList:
             testCases += 1
             weights, biases, neurons, epochlossPerN = train_neural_network(x, epochs, \
                     nNodes, hiddenLayers, plot=plotFlag,no_print=False,learning_rate_choice=learning_rate_choice)
