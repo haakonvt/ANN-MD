@@ -59,6 +59,28 @@ def functionDataCreated(trainSize,testSize):
     y_test = y_test.reshape([testSize,1])
     return x_train, y_train, x_test, y_test
 
+def functionNormDataCreated(trainSize,testSize):
+    def score(x,y,z):
+        return x*y*z
+
+    xRandArray = np.random.uniform(0, 1, trainSize)
+    yRandArray = np.random.uniform(0, 1, trainSize)
+    zRandArray = np.random.uniform(0, 1, trainSize)
+
+    x_train = np.column_stack((xRandArray,yRandArray,zRandArray))
+    y_train = score(xRandArray, yRandArray, zRandArray)
+    y_train = y_train.reshape([trainSize,1])
+
+    xRandArray = np.random.uniform(0, 1, testSize)
+    yRandArray = np.random.uniform(0, 1, testSize)
+    zRandArray = np.random.uniform(0, 1, testSize)
+
+    x_test = np.column_stack((xRandArray,yRandArray,zRandArray))
+    y_test = score(xRandArray, yRandArray, zRandArray)
+    y_test = y_test.reshape([testSize,1])
+    return x_train, y_train, x_test, y_test
+
+
 
 def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, plot=False, learning_rate_choice=0.001):
     # begin session
@@ -93,18 +115,23 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, plot=False, 
             # THIS IS MAYBE USED TO TRAIN?? Gotta check!!
             _, testCost = sess.run([optimizer, cost], feed_dict={x: xTest, y: yTest})
 
-            if (epoch+1)%int(numberOfEpochs/800.) == 0:
-                    triggerNewLine = True
+            if epoch%800 == 0:
+                triggerNewLine = True
+            if epoch%80  == 0:
+                sys.stdout.write('\r' + ' '*80) # White out line
+                sys.stdout.write('\rEpoch %5d out of %5d trainloss/N: %10g, testloss/N: %10g' % \
+                      (epoch+1, numberOfEpochs, epochLoss/float(trainSize), testCost/float(testSize)))
+                sys.stdout.flush()
             if epoch%5000 == 0:#saveEveryNepochs: # Save the next version of the neural network that is better than any previous
                 saveNow = True
             if testCost < bestTestLoss: # and testCost//float(testSize) < 1.0:
                 bestTestLoss = testCost
                 bestEpochTestLoss = epoch
-                sys.stdout.write('\rEpoch %5d out of %5d trainloss/N: %10g, testloss/N: %10g' % \
-                      (epoch+1, numberOfEpochs, epochLoss/float(trainSize), testCost/float(testSize)))
-                sys.stdout.flush()
+                #sys.stdout.write('\rEpoch %5d out of %5d trainloss/N: %10g, testloss/N: %10g' % \
+                #      (epoch+1, numberOfEpochs, epochLoss/float(trainSize), testCost/float(testSize)))
+                #sys.stdout.flush()
                 if triggerNewLine:
-                    #sys.stdout.write(' '*80) # White out line
+                    sys.stdout.write('\r' + ' '*80) # White out line
                     sys.stdout.write('\rEpoch %5d out of %5d trainloss/N: %10g, testloss/N: %10g\n' % \
                           (epoch+1, numberOfEpochs, epochLoss/float(trainSize), testCost/float(testSize)))
                     sys.stdout.flush()
@@ -118,7 +145,7 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, plot=False, 
                 if saveNow and saveFlag:
                     saveNow = False
                     saveFileName = "SavedRuns/run" + str(epoch) + ".dat"
-                    saver.save(sess, saveFileName)
+                    saver.save(sess, saveFileName, write_meta_graph=False)
 
         if plot:
             print "\nResults for test data:"
@@ -145,6 +172,7 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, plot=False, 
             np.savetxt("nndxo_err_train.dat",(yy2, yTrain, error2))
             plt.show()
 
+    sys.stdout.write(' '*80) # White out line
     return weights, biases, neurons, bestTestLoss/float(testSize)
 
 
@@ -154,7 +182,7 @@ def findLoadFileName():
         for a_file in os.listdir("SavedRuns"):
             if a_file[0] == ".": # Ignore hidden files
                 continue
-            elif a_file[-4:] == "meta" or a_file == "checkpoint":
+            elif a_file == "checkpoint":
                 continue
             else:
                 file_list.append(int(a_file[3:-4]))
@@ -241,7 +269,10 @@ trainSize = totalDataPoints - testSize
 #xTrain, yTrain, xTest, yTest = functionDataCreated(trainSize,testSize)
 
 # Test with way more data
-xTrain, yTrain, xTest, yTest = functionDataCreated(2000,700)
+#xTrain, yTrain, xTest, yTest = functionDataCreated(2000,700)
+
+# Test with way more normalized data and some weird function
+xTrain, yTrain, xTest, yTest = functionNormDataCreated(2000,700); print "FYI: For this data set, plotting will not make sense."
 
 # number of inputs and outputs
 inputs  = 3
@@ -255,9 +286,8 @@ neuralNetwork = lambda data : nnx.modelRelu(data, nNodes=nNodes, hiddenLayers=hi
 
 print "---------------------------------------"
 learning_rate_choice = 0.001 # Default for AdamOptimizer is 0.001
-testCases = 0;
+testCases = len(totalEpochList);
 print "Learning rate:", learning_rate_choice
-print "(It might take some time before anything meaningful is printed)"
 
 epochlossPerNPrev = 1e100   # "Guaranteed" worse than anything
 nNodesBest = 0; hLBest = 0; epochBest = 0
@@ -273,7 +303,7 @@ for hiddenLayers in [10]:
                 nNodesBest = nNodes
                 hLBest     = hiddenLayers
                 epochBest  = epochs
-if testCases > 1: # Print out testing different hdn layers and nmbr of nodes
+if testCases > 1.0001: # Print out testing different hdn layers and nmbr of nodes
     print "---------------------------------------"
     print "Best combination found after %d epochs:" %epochBest
     print "Layers: %d, nodes/layer: %d, loss/N: %e" %(hLBest,nNodesBest,epochlossPerNPrev)
