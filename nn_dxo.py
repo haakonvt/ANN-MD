@@ -60,7 +60,7 @@ def functionDataCreated(trainSize,testSize):
     return x_train, y_train, x_test, y_test
 
 
-def train_neural_network(x, epochs, nNodes, hiddenLayers, plot=False, no_print=False, learning_rate_choice=0.001):
+def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, plot=False, learning_rate_choice=0.001):
     # begin session
     with tf.Session() as sess:
         # pass data to network and receive output
@@ -73,17 +73,19 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, plot=False, no_print=F
         # number of cycles of feed-forward and backpropagation
         numberOfEpochs    = epochs;
         bestEpochTestLoss = -1
+        startEpoch        = 0
 
         # initialize variables or restore from file
         saver = tf.train.Saver(weights + biases, max_to_keep=None)
         sess.run(tf.initialize_all_variables())
         if loadFlag:
-            loadFileName = findLoadFileName()
-            #saver.restore(sess, loadFileName)
+            loadFileName,startEpoch = findLoadFileName()
+            numberOfEpochs         += startEpoch
+            saver.restore(sess, "SavedRuns/"+loadFileName)
 
-        bestTrainLoss = 1E100; bestTestLoss = 1E100 #
+        bestTrainLoss = 1E100; bestTestLoss = 1E100; triggerNewLine = False; saveNow = False
         # loop through epocs
-        for epoch in range(numberOfEpochs):
+        for epoch in range(startEpoch, numberOfEpochs):
             # loop through batches and cover whole data set for each epoch
             _, epochLoss = sess.run([optimizer, cost], feed_dict={x: xTrain, y: yTrain})
 
@@ -91,18 +93,10 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, plot=False, no_print=F
             # THIS IS MAYBE USED TO TRAIN?? Gotta check!!
             _, testCost = sess.run([optimizer, cost], feed_dict={x: xTest, y: yTest})
 
-            triggerNewLine = False
-            if no_print:
-                pass
-            else:
-                if (epoch+1)%int(numberOfEpochs/800.) == 0:
+            if (epoch+1)%int(numberOfEpochs/800.) == 0:
                     triggerNewLine = True
-                    """sys.stdout.write("\rEpoch %5d out of %5d trainloss/N: %10g, testloss/N: %10g" % \
-                          (epoch+1, numberOfEpochs, epochLoss/float(trainSize), testCost/float(testSize)))
-                    sys.stdout.flush()"""
-
-            """if epochLoss < bestTrainLoss and epochLoss/float(trainSize) < 20.0:
-                bestTrainLoss = epochLoss"""
+            if epoch%5000 == 0:#saveEveryNepochs: # Save the next version of the neural network that is better than any previous
+                saveNow = True
             if testCost < bestTestLoss: # and testCost//float(testSize) < 1.0:
                 bestTestLoss = testCost
                 bestEpochTestLoss = epoch
@@ -110,36 +104,21 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, plot=False, no_print=F
                       (epoch+1, numberOfEpochs, epochLoss/float(trainSize), testCost/float(testSize)))
                 sys.stdout.flush()
                 if triggerNewLine:
-                    sys.stdout.write('\n\rEpoch %5d out of %5d trainloss/N: %10g, testloss/N: %10g' % \
+                    #sys.stdout.write(' '*80) # White out line
+                    sys.stdout.write('\rEpoch %5d out of %5d trainloss/N: %10g, testloss/N: %10g\n' % \
                           (epoch+1, numberOfEpochs, epochLoss/float(trainSize), testCost/float(testSize)))
                     sys.stdout.flush()
                     triggerNewLine = False
-
                 if plot:
                     yy     = sess.run(prediction, feed_dict={x: xTest})
                     error  = yy-yTest
                     yy2    = sess.run(prediction, feed_dict={x: xTrain})
                     error2 = yy2-yTrain
-                    #break
-
-            # If saving is enabled, save the graph variables ('w', 'b') and dump
-            # some info about the training so far to SavedModels/<this run>/meta.dat.
-            if saveFlag:
-                if epoch == 0:
-                    saveEpochNumber = 0
-                    with open(saveMetaName, 'w') as outFile:
-                        outStr = '# epochs: %d train: %d, test: %d, batch: %d, nodes: %d, layers: %d' % \
-                                  (numberOfEpochs, trainSize, testSize, batchSize, nNodes, hiddenLayers)
-                        outFile.write(outStr + '\n')
-                else:
-                    with open(saveMetaName, 'a') as outFile:
-                        outStr = '%g %g' % (epochLoss/float(trainSize), testCost/float(testSize))
-                        outFile.write(outStr + '\n')
-
-                if epoch % 10 == 0:
-                    saveFileName = saveDirName + '/' 'ckpt'
-                    saver.save(sess, saveFileName, global_step=saveEpochNumber)
-                    saveEpochNumber = saveEpochNumber + 1
+                # If saving is enabled, save the graph variables ('w', 'b')
+                if saveNow and saveFlag:
+                    saveNow = False
+                    saveFileName = "SavedRuns/run" + str(epoch) + ".dat"
+                    saver.save(sess, saveFileName)
 
         if plot:
             print "\nResults for test data:"
@@ -166,8 +145,7 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, plot=False, no_print=F
             np.savetxt("nndxo_err_train.dat",(yy2, yTrain, error2))
             plt.show()
 
-
-    return weights, biases, neurons, epochLoss/trainSize
+    return weights, biases, neurons, bestTestLoss/float(testSize)
 
 
 def findLoadFileName():
@@ -175,14 +153,17 @@ def findLoadFileName():
         file_list = []
         for a_file in os.listdir("SavedRuns"):
             if a_file[0] == ".": # Ignore hidden files
-                pass
+                continue
+            elif a_file[-4:] == "meta" or a_file == "checkpoint":
+                continue
             else:
                 file_list.append(int(a_file[3:-4]))
         if len(file_list) == 0:
             print "No previous runs exits. Exiting..."; sys.exit()
         newest_file = "run" + str(np.max(file_list)) + ".dat"
-        print 'Model restored from file:', loadFileName
-        return newest_file
+        startEpoch  = np.max(file_list)
+        print 'Model restored from file:', newest_file
+        return newest_file,startEpoch
     else:
         os.makedirs("SavedRuns")
         print "Created 'SavedRuns'-directory. No previous runs exits. Exiting..."; sys.exit()
@@ -206,7 +187,7 @@ raw_data = np.load("raw_data_dxo.npy")
 cmdArgs  = len(sys.argv)-1
 totalEpochList = [1000]
 loadFileName = None; saveFileName = None
-global saveFlag; global loadFlag; global plotFlag
+global loadFlag; global plotFlag
 saveFlag, loadFlag, plotFlag = False, False, False
 if cmdArgs < 1: # No input from user, running default
     pass
@@ -255,8 +236,10 @@ trainSize = totalDataPoints - testSize
 
 # get real world input
 #xTrain, yTrain, xTest, yTest = functionData(trainSize,testSize)
+
 # get random input
 #xTrain, yTrain, xTest, yTest = functionDataCreated(trainSize,testSize)
+
 # Test with way more data
 xTrain, yTrain, xTest, yTest = functionDataCreated(2000,700)
 
@@ -267,8 +250,8 @@ outputs = 1
 x = tf.placeholder('float', [None, inputs],  name="x")
 y = tf.placeholder('float', [None, outputs], name="y")
 
-neuralNetwork = lambda data : nnx.modelSigmoid(data, nNodes=nNodes, hiddenLayers=hiddenLayers,
-                                               wInitMethod='normal', bInitMethod='normal')
+neuralNetwork = lambda data : nnx.modelRelu(data, nNodes=nNodes, hiddenLayers=hiddenLayers, wInitMethod='normal', bInitMethod='normal')
+#neuralNetwork = lambda data : nnx.modelSigmoid(data, nNodes=nNodes, hiddenLayers=hiddenLayers,wInitMethod='normal', bInitMethod='normal')
 
 print "---------------------------------------"
 learning_rate_choice = 0.001 # Default for AdamOptimizer is 0.001
@@ -283,7 +266,7 @@ for hiddenLayers in [10]:
         for epochs in totalEpochList:
             testCases += 1
             weights, biases, neurons, epochlossPerN = train_neural_network(x, epochs, \
-                    nNodes, hiddenLayers, plot=plotFlag,no_print=False,learning_rate_choice=learning_rate_choice)
+                    nNodes, hiddenLayers, saveFlag, plot=plotFlag,learning_rate_choice=learning_rate_choice)
             print "\nHid.layers: %2.d, nodes/l: %2.d, epochs: %d, loss/N: %f" %(hiddenLayers,nNodes,epochs,epochlossPerN)
             if epochlossPerN < epochlossPerNPrev:
                 epochlossPerNPrev = epochlossPerN

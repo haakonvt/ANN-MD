@@ -57,9 +57,8 @@ def modelSigmoid(data, nNodes=10, hiddenLayers=3, inputs=3, outputs=1,
 
 
 
-def modelRelu(data, nNodes=10, hiddenLayers=3, inputs=1, outputs=1,
+def modelRelu(data, nNodes=10, hiddenLayers=3, inputs=3, outputs=1,
           wInitMethod='normal', bInitMethod='normal'):
-
     weights = []
     biases  = []
     neurons = []
