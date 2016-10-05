@@ -1,85 +1,53 @@
 """
-Train a neural network to approximate a function from DXOMARK.com
-that decides the "Global Score" value.
-
-# Data: https://www.dxomark.com/cameras#hideAdvancedOptions=false&viewMode=list&yDataType=rankDxo
-# Extracted data: https://regex101.com/r/vF9pS7/1
+Train a neural network to approximate a 2-variable
 """
 import neuralNetworkXavier as nnx
 import matplotlib.pyplot as plt
 import tensorflow as tf
-import datetime as time
 import numpy as np
-import shutil, sys, os
+import sys,os
 
-""" First time run:
-x = np.loadtxt("values_dxo.dat"); y = len(x)/4
-x = x.reshape((y,4))
+def scoreFunc1(x,y,return2Darray=False):
+    if not return2Darray:
+        N   = len(x)
+        res = np.zeros(N)
+        for i in range(N):
+            xi = x[i]; yi = y[i]
+            if xi > 0.3 and xi < 0.7 and yi > 0.3 and yi < 0.7:
+                res[i] = np.sin(x[i]*4*np.pi)*np.cos(y[i]*4*np.pi)
+            else:
+                res[i] = np.sin(x[i]*2*np.pi)*np.cos(y[i]*2*np.pi)
+        return res
+    else:
+        X, Y = np.meshgrid(x, y)
+        Z    = np.zeros(X.shape)
+        N   = len(x)
+        for j in range(N):
+            for i in range(N):
+                if X[i,j] > 0.3 and X[i,j] < 0.7 and Y[i,j] > 0.3 and Y[i,j] < 0.7:
+                    Z[i,j] = np.sin(X[i,j]*4*np.pi)*np.cos(Y[i,j]*4*np.pi)
+                else:
+                    Z[i,j] = np.sin(X[i,j]*2*np.pi)*np.cos(Y[i,j]*2*np.pi)
+        return Z.transpose()
 
-totalDataPoints = x.shape[0] #(323, 4)
 
-np.savetxt("values_array_dxo.dat",x,delimiter=',\t',fmt='%.1f')
-np.save("raw_data_dxo",x)"""
-
-def functionData(trainSize,testSize):
-    """
-    Create train input for NN and test data
-    """
-    x_train = trainData[:,1:]
-    x_train = x_train.reshape([trainSize,3])
-    y_train = trainData[:,0]
-    y_train = y_train.reshape([trainSize,1])
-
-    x_test  = xRand[:,1:]
-    x_test = x_test.reshape([testSize,3])
-    y_test  = xRand[:,0]
-    y_test = y_test.reshape([testSize,1])
-    return x_train, y_train, x_test, y_test
-
-
-def functionDataCreated(trainSize,testSize):
-    """Test the neural network with data generated randomly, with approximately the same
-    distribution, but with a known function to find the Global Score"""
-    score = lambda x,y,z: np.around((98/3.0) * (x/float(26.5) + y/float(14.8) + z/float(3702)), decimals=1)
-
-    xRandArray = np.around(np.random.uniform(17.9, 26.5,   trainSize), decimals=1)
-    yRandArray = np.around(np.random.uniform(9.6,  14.8,   trainSize), decimals=1)
-    zRandArray = np.around(np.random.uniform(68.0, 3702.0, trainSize), decimals=1)
-
-    x_train = np.column_stack((xRandArray,yRandArray,zRandArray))
-    y_train = score(xRandArray, yRandArray, zRandArray)
-    y_train = y_train.reshape([trainSize,1])
-
-    xRandArray = np.around(np.random.uniform(17.9, 26.5,   testSize), decimals=1)
-    yRandArray = np.around(np.random.uniform(9.6,  14.8,   testSize), decimals=1)
-    zRandArray = np.around(np.random.uniform(68.0, 3702.0, testSize), decimals=1)
-
-    x_test = np.column_stack((xRandArray,yRandArray,zRandArray))
-    y_test = score(xRandArray, yRandArray, zRandArray)
-    y_test = y_test.reshape([testSize,1])
-    return x_train, y_train, x_test, y_test
-
-def functionNormDataCreated(trainSize,testSize):
-    def score(x,y,z):
-        return np.sin(x)*np.cos(y + z)
+def functionNormData(scorefunction,trainSize,testSize):
+    score = scorefunction
 
     xRandArray = np.random.uniform(0, 1, trainSize)
     yRandArray = np.random.uniform(0, 1, trainSize)
-    zRandArray = np.random.uniform(0, 1, trainSize)
 
-    x_train = np.column_stack((xRandArray,yRandArray,zRandArray))
-    y_train = score(xRandArray, yRandArray, zRandArray)
+    x_train = np.column_stack((xRandArray,yRandArray))
+    y_train = score(xRandArray, yRandArray)
     y_train = y_train.reshape([trainSize,1])
 
     xRandArray = np.random.uniform(0, 1, testSize)
     yRandArray = np.random.uniform(0, 1, testSize)
-    zRandArray = np.random.uniform(0, 1, testSize)
 
-    x_test = np.column_stack((xRandArray,yRandArray,zRandArray))
-    y_test = score(xRandArray, yRandArray, zRandArray)
+    x_test = np.column_stack((xRandArray,yRandArray))
+    y_test = score(xRandArray, yRandArray)
     y_test = y_test.reshape([testSize,1])
     return x_train, y_train, x_test, y_test
-
 
 
 def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, plot=False, learning_rate_choice=0.001):
@@ -88,7 +56,7 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, plot=False, 
         # pass data to network and receive output
         prediction, weights, biases, neurons = neuralNetwork(x)
 
-        cost = tf.nn.l2_loss( tf.sub(prediction, y) )
+        cost = tf.nn.l2_loss(tf.sub(prediction, y))
 
         optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate_choice).minimize(cost)
 
@@ -135,15 +103,12 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, plot=False, 
                     triggerNewLine = True if plot else False
                 if plot and triggerNewLine:
                     triggerNewLine = False
-                    yy     = sess.run(prediction, feed_dict={x: xTest})
-                    error  = yTest-yy
-                    yy2    = sess.run(prediction, feed_dict={x: xTrain})
-                    error2 = yTrain-yy2
-                    """#Uncomment to print evolution of accuracy
-                    accuracy = np.int_(np.round(error)) # 0 means correct guess
-                    perfResPercent = (len(accuracy)-len(np.nonzero(accuracy)[0]))*100.0/len(accuracy)
-                    print "Accuracy of perfect predictions: %.1f %%" %perfResPercent
-                    print np.sort(np.transpose(accuracy))"""
+                    linPoints = np.linspace(0,1,101)
+                    zForPlot  = np.zeros((101,101))
+                    for row in xrange(101):
+                        rowValues = np.ones(101)*linPoints[row]
+                        xyForPlot = np.column_stack((rowValues,linPoints))
+                        zForPlot[row,:] = sess.run(prediction, feed_dict={x: xyForPlot})[:,0]
                 # If saving is enabled, save the graph variables ('w', 'b')
                 if saveNow and saveFlag:
                     saveNow = False
@@ -152,25 +117,16 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, plot=False, 
 
         if plot:
             print "\n\nResults for test data:"
-            accuracy = np.int_(np.round(error)) # 0 means correct guess
-            perfResPercent = (len(accuracy)-len(np.nonzero(accuracy)[0]))*100.0/len(accuracy)
-            print "Accuracy of perfect predictions: %.1f %%" %perfResPercent
-            print np.sort(np.transpose(accuracy))
-            plt.hist(error,bins=13)
-            plt.xlabel('Test case (number)')
-            plt.ylabel('Error: Prediciton - Exact answer')
-            np.savetxt("nndxo_err_test.dat",(yy, yTest, error))
-            plt.show()
+            Z = scoreFunc1(linPoints,linPoints,return2Darray=True)
 
-            print "Results for train data:"
-            accuracy = np.int_(np.round(error2)) # 0 means correct guess
-            perfResPercent = (len(accuracy)-len(np.nonzero(accuracy)[0]))*100.0/len(accuracy)
-            print "Accuracy of perfect predictions: %.1f %%" %perfResPercent
-            print np.sort(np.transpose(accuracy))
-            plt.hist(error2,bins=13)
-            plt.xlabel('')
-            plt.ylabel('Error: round(Prediciton - Exact answer)')
-            np.savetxt("nndxo_err_train.dat",(yy2, yTrain, error2))
+            fig = plt.figure()
+            a=fig.add_subplot(1,2,1)
+            imgplot = plt.imshow(Z)
+            a.set_title('Actual function')
+
+            a=fig.add_subplot(1,2,2)
+            imgplot = plt.imshow(zForPlot)
+            a.set_title('NN approx. func.')
             plt.show()
 
     sys.stdout.write('\r' + ' '*80) # White out line
@@ -212,7 +168,6 @@ def isinteger(x):
 #--------------#
 ##### main #####
 #--------------#
-raw_data = np.load("raw_data_dxo.npy")
 cmdArgs  = len(sys.argv)-1
 totalEpochList = [1000]
 loadFileName = None; saveFileName = None
@@ -244,46 +199,27 @@ else: # We need to parse the command line args
             sys.exit()
 
 # Pick out test data randomly from the data
-totalDataPoints = raw_data.shape[0]
-randRows = np.random.choice(totalDataPoints, 80, replace=False)
-global xRand
-xRand = raw_data[randRows,:]
-
-# Pick out the rest for training data
-leftoverRows = [i for i in range(totalDataPoints) if i not in randRows]
-
 global trainData
-trainData = raw_data[leftoverRows,:]
-np.random.shuffle(trainData) # Shuffle rows of the data to minimize impact of ordering of the data
 
 # reset so that variables are not given new names
 tf.reset_default_graph()
 
 # number of samples
-testSize  = 80 # Out of a hat, we found the number 80
-trainSize = totalDataPoints - testSize
+testSize  = 1000
+trainSize = 4000
 
 # get real world input
-xTrain, yTrain, xTest, yTest = functionData(trainSize,testSize)
-
-# get random input
-#xTrain, yTrain, xTest, yTest = functionDataCreated(trainSize,testSize)
-
-# Test with way more data
-#xTrain, yTrain, xTest, yTest = functionDataCreated(2000,700)
-
-# Test with way more normalized data and some weird function
-#xTrain, yTrain, xTest, yTest = functionNormDataCreated(2000,700); print "FYI: For this data set, plotting will not make sense."
+xTrain, yTrain, xTest, yTest = functionNormData(scoreFunc1,trainSize,testSize)
 
 # number of inputs and outputs
-inputs  = 3
+inputs  = 2
 outputs = 1
 
 x = tf.placeholder('float', [None, inputs],  name="x")
 y = tf.placeholder('float', [None, outputs], name="y")
 
 #neuralNetwork = lambda data : nnx.modelRelu(data, nNodes=nNodes, hiddenLayers=hiddenLayers, wInitMethod='normal', bInitMethod='normal')
-neuralNetwork = lambda data : nnx.modelSigmoid(data, nNodes=nNodes, hiddenLayers=hiddenLayers,wInitMethod='normal', bInitMethod='normal')
+neuralNetwork = lambda data : nnx.modelSigmoid(data, nNodes=nNodes, hiddenLayers=hiddenLayers,inputs=2, wInitMethod='normal', bInitMethod='normal')
 
 print "---------------------------------------"
 learning_rate_choice = 0.001 # Default for AdamOptimizer is 0.001
