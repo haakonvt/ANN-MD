@@ -1,11 +1,13 @@
 """
-Train a neural network to approximate a 2-variable
+Train a neural network to approximate a 2-variable function
 """
 import neuralNetworkXavier as nnx
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 import tensorflow as tf
 import numpy as np
 import sys,os
+
 
 def scoreFunc1(x,y,return2Darray=False):
     if not return2Darray:
@@ -14,20 +16,20 @@ def scoreFunc1(x,y,return2Darray=False):
         for i in range(N):
             xi = x[i]; yi = y[i]
             if xi > 0.3 and xi < 0.7 and yi > 0.3 and yi < 0.7:
-                res[i] = np.sin(x[i]*4*np.pi)*np.cos(y[i]*4*np.pi)
+                res[i] = np.sin(x[i]*4*np.pi)*np.cos(y[i]*4*np.pi + x[i]*4*np.pi)
             else:
-                res[i] = np.sin(x[i]*2*np.pi)*np.cos(y[i]*2*np.pi)
+                res[i] = np.sin(x[i]*4*np.pi)*np.cos(y[i]*4*np.pi + x[i]*4*np.pi)
         return res
     else:
         X, Y = np.meshgrid(x, y)
         Z    = np.zeros(X.shape)
         N   = len(x)
-        for j in range(N):
-            for i in range(N):
+        for i in range(N):
+            for j in range(N):
                 if X[i,j] > 0.3 and X[i,j] < 0.7 and Y[i,j] > 0.3 and Y[i,j] < 0.7:
-                    Z[i,j] = np.sin(X[i,j]*4*np.pi)*np.cos(Y[i,j]*4*np.pi)
+                    Z[i,j] = np.sin(X[i,j]*4*np.pi)*np.cos(Y[i,j]*4*np.pi + X[i,j]*4*np.pi)
                 else:
-                    Z[i,j] = np.sin(X[i,j]*2*np.pi)*np.cos(Y[i,j]*2*np.pi)
+                    Z[i,j] = np.sin(X[i,j]*4*np.pi)*np.cos(Y[i,j]*4*np.pi + X[i,j]*4*np.pi)
         return Z.transpose()
 
 
@@ -103,31 +105,58 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, plot=False, 
                     triggerNewLine = True if plot else False
                 if plot and triggerNewLine:
                     triggerNewLine = False
-                    linPoints = np.linspace(0,1,101)
-                    zForPlot  = np.zeros((101,101))
-                    for row in xrange(101):
-                        rowValues = np.ones(101)*linPoints[row]
+                    plotLinearResolution = 250
+                    linPoints = np.linspace(0,1,plotLinearResolution)
+                    zForPlot  = np.zeros((plotLinearResolution,plotLinearResolution))
+                    for row in xrange(plotLinearResolution):
+                        rowValues = np.ones(plotLinearResolution)*linPoints[row]
                         xyForPlot = np.column_stack((rowValues,linPoints))
                         zForPlot[row,:] = sess.run(prediction, feed_dict={x: xyForPlot})[:,0]
+
+                    #print "\n\nResults for test data:"
+                    Z = scoreFunc1(linPoints,linPoints,return2Darray=True)
+
+                    fig = plt.figure()
+                    colormap_choice = cm.RdYlGn
+                    a=fig.add_subplot(1,3,1)
+                    imgplot = plt.imshow(Z, cmap=colormap_choice)
+                    a.set_title('Actual function')
+
+                    a=fig.add_subplot(1,3,2)
+                    imgplot = plt.imshow(zForPlot, cmap=colormap_choice)
+                    a.set_title('NN approx. func.')
+
+                    a=fig.add_subplot(1,3,3)
+                    imgplot = plt.imshow(Z-zForPlot, cmap=colormap_choice)
+                    a.set_title('Error in NN approx.')
+
+                    plt.savefig("SomePlots/fig%d.png" %epoch, dpi=250)
+                    #plt.show()
+                    plt.close()
                 # If saving is enabled, save the graph variables ('w', 'b')
                 if saveNow and saveFlag:
                     saveNow = False
                     saveFileName = "SavedRuns/run" + str(epoch) + ".dat"
                     saver.save(sess, saveFileName, write_meta_graph=False)
 
-        if plot:
+        """if plot:
             print "\n\nResults for test data:"
             Z = scoreFunc1(linPoints,linPoints,return2Darray=True)
 
             fig = plt.figure()
-            a=fig.add_subplot(1,2,1)
+            a=fig.add_subplot(1,3,1)
             imgplot = plt.imshow(Z)
             a.set_title('Actual function')
 
-            a=fig.add_subplot(1,2,2)
+            a=fig.add_subplot(1,3,2)
             imgplot = plt.imshow(zForPlot)
             a.set_title('NN approx. func.')
-            plt.show()
+
+            a=fig.add_subplot(1,3,3)
+            imgplot = plt.imshow(Z-zForPlot)
+            a.set_title('Error in NN approx.')
+            plt.savefig("fig%d.png" %epoch)
+            #plt.show()"""
 
     sys.stdout.write('\r' + ' '*80) # White out line
     return weights, biases, neurons, bestTestLoss/float(testSize)
