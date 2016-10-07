@@ -1,40 +1,45 @@
 """
 Train a neural network to approximate a 2-variable function
 """
+from mpl_toolkits.mplot3d import Axes3D
 import neuralNetworkXavier as nnx
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import tensorflow as tf
 import numpy as np
 import sys,os
+import math
 
 
 def scoreFunc1(x,y,return2Darray=False):
     if not return2Darray:
-        N   = len(x)
-        res = np.zeros(N)
-        for i in range(N):
+        #N   = len(x)
+        #z = np.zeros(N)
+        z = np.exp(-20*(x-0.5)**2)*np.exp(-20*(y-0.5)**2)
+        """for i in range(N):
             xi = x[i]; yi = y[i]
+            res[i] = math.exp(-20*(xi-0.5)**2)*math.exp(-20*(yi-0.5)**2)
             if xi > 0.3 and xi < 0.7 and yi > 0.3 and yi < 0.7:
-                res[i] = np.sin(x[i]*4*np.pi)*np.cos(y[i]*4*np.pi + x[i]*4*np.pi)
+                z[i] = np.sin(x[i]*4*np.pi)*np.cos(y[i]*4*np.pi + x[i]*4*np.pi)
             else:
-                res[i] = np.sin(x[i]*4*np.pi)*np.cos(y[i]*4*np.pi + x[i]*4*np.pi)
-        return res
+                z[i] = np.sin(x[i]*4*np.pi)*np.cos(y[i]*4*np.pi + x[i]*4*np.pi)"""
+        return z
     else:
         X, Y = np.meshgrid(x, y)
-        Z    = np.zeros(X.shape)
-        N   = len(x)
-        for i in range(N):
+        #Z    = np.zeros(X.shape)
+        #N   = len(x)
+        Z = np.exp(-20*(X-0.5)**2)*np.exp(-20*(Y-0.5)**2)
+        """for i in range(N):
             for j in range(N):
                 if X[i,j] > 0.3 and X[i,j] < 0.7 and Y[i,j] > 0.3 and Y[i,j] < 0.7:
                     Z[i,j] = np.sin(X[i,j]*4*np.pi)*np.cos(Y[i,j]*4*np.pi + X[i,j]*4*np.pi)
                 else:
-                    Z[i,j] = np.sin(X[i,j]*4*np.pi)*np.cos(Y[i,j]*4*np.pi + X[i,j]*4*np.pi)
+                    Z[i,j] = np.sin(X[i,j]*4*np.pi)*np.cos(Y[i,j]*4*np.pi + X[i,j]*4*np.pi)"""
         return Z.transpose()
 
 
-def functionNormData(scorefunction,trainSize,testSize):
-    score = scorefunction
+def functionNormData(trainSize,testSize):
+    score = scoreFunc1
 
     xRandArray = np.random.uniform(0, 1, trainSize)
     yRandArray = np.random.uniform(0, 1, trainSize)
@@ -76,9 +81,16 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, plot=False, 
             saver.restore(sess, "SavedRuns/"+loadFileName)
 
         bestTrainLoss = 1E100; bestTestLoss = 1E100; triggerNewLine = False; saveNow = False
+
+        # Initiate some variables needed for plotting
+        plotLinearResolution = 101
+        linPoints = np.linspace(0,1,plotLinearResolution)
+        zForPlot  = np.zeros((plotLinearResolution,plotLinearResolution))
+        X, Y = np.meshgrid(linPoints, linPoints)
         # loop through epocs
+        xTrain, yTrain, xTest, yTest = functionNormData(trainSize,testSize)
         for epoch in range(startEpoch, numberOfEpochs):
-            # loop through batches and cover whole data set for each epoch
+            # loop through batches and cover new data set for each epoch
             _, epochLoss = sess.run([optimizer, cost], feed_dict={x: xTrain, y: yTrain})
 
             # compute test set loss
@@ -87,6 +99,8 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, plot=False, 
 
             if epoch%800 == 0:
                 triggerNewLine = True
+                # Generate new train and test data each 800th epoch:
+                xTrain, yTrain, xTest, yTest = functionNormData(trainSize,testSize)
             if epoch%80  == 0 and numberOfEpochs > epoch+80:
                 sys.stdout.write('\r' + ' '*80) # White out line
                 sys.stdout.write('\rEpoch %5d out of %5d trainloss/N: %10g, testloss/N: %10g' % \
@@ -105,9 +119,6 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, plot=False, 
                     triggerNewLine = True if plot else False
                 if plot and triggerNewLine:
                     triggerNewLine = False
-                    plotLinearResolution = 250
-                    linPoints = np.linspace(0,1,plotLinearResolution)
-                    zForPlot  = np.zeros((plotLinearResolution,plotLinearResolution))
                     for row in xrange(plotLinearResolution):
                         rowValues = np.ones(plotLinearResolution)*linPoints[row]
                         xyForPlot = np.column_stack((rowValues,linPoints))
@@ -118,19 +129,34 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, plot=False, 
 
                     fig = plt.figure()
                     colormap_choice = cm.RdYlGn
-                    a=fig.add_subplot(1,3,1)
+                    a=fig.add_subplot(2,3,1)
                     imgplot = plt.imshow(Z, cmap=colormap_choice)
                     a.set_title('Actual function')
 
-                    a=fig.add_subplot(1,3,2)
+                    a=fig.add_subplot(2,3,2)
                     imgplot = plt.imshow(zForPlot, cmap=colormap_choice)
                     a.set_title('NN approx. func.')
 
-                    a=fig.add_subplot(1,3,3)
+                    a=fig.add_subplot(2,3,3)
                     imgplot = plt.imshow(Z-zForPlot, cmap=colormap_choice)
                     a.set_title('Error in NN approx.')
 
-                    plt.savefig("SomePlots/fig%d.png" %epoch, dpi=250)
+                    a = fig.add_subplot(2,3,4, projection='3d')
+                    #a = fig.gca(projection='3d')
+                    surf = a.plot_surface(X, Y, Z, rstride=1, cstride=1, cmap=colormap_choice,
+                                           linewidth=0, antialiased=False)
+
+                    a = fig.add_subplot(2,3,5, projection='3d')
+                    #a = fig.gca(projection='3d')
+                    surf = a.plot_surface(X, Y, zForPlot, rstride=1, cstride=1, cmap=colormap_choice,
+                                           linewidth=0, antialiased=False)
+
+                    a = fig.add_subplot(2,3,6, projection='3d')
+                    #a = fig.gca(projection='3d')
+                    surf = a.plot_surface(X, Y, Z-zForPlot, rstride=1, cstride=1, cmap=colormap_choice,
+                                           linewidth=0, antialiased=False)
+
+                    plt.savefig("SomePlots/fig%d.png" %epoch, dpi=150)
                     #plt.show()
                     plt.close()
                 # If saving is enabled, save the graph variables ('w', 'b')
@@ -238,7 +264,7 @@ testSize  = 1000
 trainSize = 4000
 
 # get real world input
-xTrain, yTrain, xTest, yTest = functionNormData(scoreFunc1,trainSize,testSize)
+#xTrain, yTrain, xTest, yTest = functionNormData(trainSize,testSize)
 
 # number of inputs and outputs
 inputs  = 2
