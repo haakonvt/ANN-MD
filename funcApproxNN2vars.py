@@ -12,30 +12,40 @@ import math
 
 
 def scoreFunc1(x,y,return2Darray=False):
-    if not return2Darray:
-        #N   = len(x)
-        #z = np.zeros(N)
-        z = np.exp(-20*(x-0.5)**2)*np.exp(-20*(y-0.5)**2)
-        """for i in range(N):
+    N = x.size
+    if return2Darray:
+        x,y = np.meshgrid(x, y)
+        z   = np.zeros(x.shape)
+    else:
+        z = np.zeros(N)
+    # Formula that takes vectors or 2d-arrays
+    z = (2*np.exp(-20*(y-0.5)**2)*np.exp(-20*(x-0.5)**2) - 1.0) * y#* np.sin(x*4*np.pi)*np.sin(y*4*np.pi)
+    return z if not return2Darray else z.transpose()
+    # If you want some non-continous changes:
+    """if not return2Darray:
+        z = np.zeros(N)
+        #z  = 2*np.exp(-20*(x-0.5)**2)*np.exp(-20*(y-0.5)**2) - 1.0
+        #z = np.sin(x*4*np.pi)*np.sin(y*4*np.pi)
+        for i in xrange(N):
             xi = x[i]; yi = y[i]
-            res[i] = math.exp(-20*(xi-0.5)**2)*math.exp(-20*(yi-0.5)**2)
-            if xi > 0.3 and xi < 0.7 and yi > 0.3 and yi < 0.7:
-                z[i] = np.sin(x[i]*4*np.pi)*np.cos(y[i]*4*np.pi + x[i]*4*np.pi)
+            #res[i] = math.exp(-20*(xi-0.5)**2)*math.exp(-20*(yi-0.5)**2)
+            if xi < 0.5:# and xi < 0.75 and yi > 0.25 and yi < 0.75:
+                z[i] = x[i]#np.sin(x[i]*4*np.pi)*np.cos(y[i]*4*np.pi + x[i]*4*np.pi)
             else:
-                z[i] = np.sin(x[i]*4*np.pi)*np.cos(y[i]*4*np.pi + x[i]*4*np.pi)"""
+                z[i] = 1.0-x[i]#np.sin(x[i]*4*np.pi)*np.cos(y[i]*4*np.pi + x[i]*4*np.pi)
         return z
     else:
         X, Y = np.meshgrid(x, y)
-        #Z    = np.zeros(X.shape)
-        #N   = len(x)
-        Z = np.exp(-20*(X-0.5)**2)*np.exp(-20*(Y-0.5)**2)
-        """for i in range(N):
-            for j in range(N):
-                if X[i,j] > 0.3 and X[i,j] < 0.7 and Y[i,j] > 0.3 and Y[i,j] < 0.7:
-                    Z[i,j] = np.sin(X[i,j]*4*np.pi)*np.cos(Y[i,j]*4*np.pi + X[i,j]*4*np.pi)
+        Z    = np.zeros(X.shape)
+        #Z  = 2*np.exp(-20*(X-0.5)**2)*np.exp(-20*(Y-0.5)**2) - 1.0
+        #Z = np.sin(X*4*np.pi)*np.sin(Y*4*np.pi)
+        for i in xrange(N):
+            for j in xrange(N):
+                if X[i,j] < 0.5:# and X[i,j] < 0.75 and Y[i,j] > 0.25 and Y[i,j] < 0.75:
+                    Z[i,j] = X[i,j]#np.sin(X[i,j]*4*np.pi)*np.cos(Y[i,j]*4*np.pi + X[i,j]*4*np.pi)
                 else:
-                    Z[i,j] = np.sin(X[i,j]*4*np.pi)*np.cos(Y[i,j]*4*np.pi + X[i,j]*4*np.pi)"""
-        return Z.transpose()
+                    Z[i,j] = 1.0-X[i,j]#np.sin(X[i,j]*4*np.pi)*np.cos(Y[i,j]*4*np.pi + X[i,j]*4*np.pi)
+        return Z.transpose()"""
 
 
 def functionNormData(trainSize,testSize):
@@ -57,7 +67,8 @@ def functionNormData(trainSize,testSize):
     return x_train, y_train, x_test, y_test
 
 
-def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, plot=False, learning_rate_choice=0.001):
+def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, noPrint=False, \
+                         plot=False, learning_rate_choice=0.001):
     # begin session
     with tf.Session() as sess:
         # pass data to network and receive output
@@ -83,10 +94,16 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, plot=False, 
         bestTrainLoss = 1E100; bestTestLoss = 1E100; triggerNewLine = False; saveNow = False
 
         # Initiate some variables needed for plotting
-        plotLinearResolution = 101
-        linPoints = np.linspace(0,1,plotLinearResolution)
-        zForPlot  = np.zeros((plotLinearResolution,plotLinearResolution))
-        X, Y = np.meshgrid(linPoints, linPoints)
+        plotLinearResolution = 100
+        linPoints            = np.linspace(0,1,plotLinearResolution)
+        zForPlot             = np.zeros((plotLinearResolution,plotLinearResolution))
+        X, Y                 = np.meshgrid(linPoints, linPoints)
+        plotEveryNEpochs     = 50
+        plotCount            = 0
+        if loadFlag:
+            plotCount = int(raw_input("Please input plotcount of last plot: [int]: "))
+        plotNow              = False
+        colormap_choice      = cm.BrBG
         # loop through epocs
         xTrain, yTrain, xTest, yTest = functionNormData(trainSize,testSize)
         for epoch in range(startEpoch, numberOfEpochs):
@@ -102,63 +119,63 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, plot=False, 
                 # Generate new train and test data each 800th epoch:
                 xTrain, yTrain, xTest, yTest = functionNormData(trainSize,testSize)
             if epoch%80  == 0 and numberOfEpochs > epoch+80:
-                sys.stdout.write('\r' + ' '*80) # White out line
-                sys.stdout.write('\rEpoch %5d out of %5d trainloss/N: %10g, testloss/N: %10g' % \
-                      (epoch+1, numberOfEpochs, epochLoss/float(trainSize), testCost/float(testSize)))
-                sys.stdout.flush()
-            if epoch%5000 == 0:#saveEveryNepochs: # Save the next version of the neural network that is better than any previous
+                if not noPrint:
+                    sys.stdout.write('\r' + ' '*80) # White out line
+                    sys.stdout.write('\rEpoch %5d out of %5d trainloss/N: %10g, testloss/N: %10g' % \
+                          (epoch+1, numberOfEpochs, epochLoss/float(trainSize), testCost/float(testSize)))
+                    sys.stdout.flush()
+            if epoch%1000 == 0:#saveEveryNepochs: # Save the next version of the neural network that is better than any previous
                 saveNow = True if epoch > 0 else False
             if testCost < bestTestLoss: # and testCost//float(testSize) < 1.0:
                 bestTestLoss = testCost
                 bestEpochTestLoss = epoch
                 if triggerNewLine:
-                    sys.stdout.write('\r' + ' '*80) # White out line
-                    sys.stdout.write('\rEpoch %5d out of %5d trainloss/N: %10g, testloss/N: %10g\n' % \
-                          (epoch+1, numberOfEpochs, epochLoss/float(trainSize), testCost/float(testSize)))
-                    sys.stdout.flush()
-                    triggerNewLine = True if plot else False
-                if plot and triggerNewLine:
+                    if not noPrint:
+                        sys.stdout.write('\r' + ' '*80) # White out line
+                        sys.stdout.write('\rEpoch %5d out of %5d trainloss/N: %10g, testloss/N: %10g\n' % \
+                              (epoch+1, numberOfEpochs, epochLoss/float(trainSize), testCost/float(testSize)))
+                        sys.stdout.flush()
                     triggerNewLine = False
-                    for row in xrange(plotLinearResolution):
-                        rowValues = np.ones(plotLinearResolution)*linPoints[row]
-                        xyForPlot = np.column_stack((rowValues,linPoints))
-                        zForPlot[row,:] = sess.run(prediction, feed_dict={x: xyForPlot})[:,0]
+                    plotNow        = True
+            if (plot and epoch % plotEveryNEpochs == 0) or (plotNow and plot):
+                plotNow = False
+                for row in xrange(plotLinearResolution):
+                    rowValues = np.ones(plotLinearResolution)*linPoints[row]
+                    xyForPlot = np.column_stack((rowValues,linPoints))
+                    zForPlot[row,:] = sess.run(prediction, feed_dict={x: xyForPlot})[:,0]
 
-                    #print "\n\nResults for test data:"
-                    Z = scoreFunc1(linPoints,linPoints,return2Darray=True)
+                Z   = scoreFunc1(linPoints,linPoints,return2Darray=True)
+                err = np.sum(np.abs(Z-zForPlot))/float(Z.size) # Average error
 
-                    fig = plt.figure()
-                    colormap_choice = cm.RdYlGn
-                    a=fig.add_subplot(2,3,1)
-                    imgplot = plt.imshow(Z, cmap=colormap_choice)
-                    a.set_title('Actual function')
+                fig = plt.figure()
+                a=fig.add_subplot(2,3,1)
+                imgplot = plt.imshow(Z, cmap=colormap_choice)
+                a.set_title('Actual function')
 
-                    a=fig.add_subplot(2,3,2)
-                    imgplot = plt.imshow(zForPlot, cmap=colormap_choice)
-                    a.set_title('NN approx. func.')
+                a=fig.add_subplot(2,3,2)
+                imgplot = plt.imshow(zForPlot, cmap=colormap_choice)
+                a.set_title('NN approx. func.')
 
-                    a=fig.add_subplot(2,3,3)
-                    imgplot = plt.imshow(Z-zForPlot, cmap=colormap_choice)
-                    a.set_title('Error in NN approx.')
+                a=fig.add_subplot(2,3,3)
+                imgplot = plt.imshow(Z-zForPlot, cmap=colormap_choice)
+                a.set_title('Error NN: %.2e' %err)
 
-                    a = fig.add_subplot(2,3,4, projection='3d')
-                    #a = fig.gca(projection='3d')
-                    surf = a.plot_surface(X, Y, Z, rstride=1, cstride=1, cmap=colormap_choice,
-                                           linewidth=0, antialiased=False)
+                a = fig.add_subplot(2,3,4, projection='3d')
+                surf = a.plot_surface(X, Y, Z, rstride=1, cstride=1, cmap=colormap_choice,
+                                       linewidth=0, antialiased=False)
 
-                    a = fig.add_subplot(2,3,5, projection='3d')
-                    #a = fig.gca(projection='3d')
-                    surf = a.plot_surface(X, Y, zForPlot, rstride=1, cstride=1, cmap=colormap_choice,
-                                           linewidth=0, antialiased=False)
+                a = fig.add_subplot(2,3,5, projection='3d')
+                surf = a.plot_surface(X, Y, zForPlot, rstride=1, cstride=1, cmap=colormap_choice,
+                                       linewidth=0, antialiased=False)
 
-                    a = fig.add_subplot(2,3,6, projection='3d')
-                    #a = fig.gca(projection='3d')
-                    surf = a.plot_surface(X, Y, Z-zForPlot, rstride=1, cstride=1, cmap=colormap_choice,
-                                           linewidth=0, antialiased=False)
+                a = fig.add_subplot(2,3,6, projection='3d')
+                surf = a.plot_surface(X, Y, Z-zForPlot, rstride=1, cstride=1, cmap=colormap_choice,
+                                       linewidth=0, antialiased=False)
 
-                    plt.savefig("SomePlots/fig%d.png" %epoch, dpi=150)
-                    #plt.show()
-                    plt.close()
+                plt.savefig("SomePlots/fig%d_epoch%d.png" %(plotCount,epoch), dpi=150)
+                plotCount += 1
+                plt.close()
+
                 # If saving is enabled, save the graph variables ('w', 'b')
                 if saveNow and saveFlag:
                     saveNow = False
@@ -273,7 +290,7 @@ outputs = 1
 x = tf.placeholder('float', [None, inputs],  name="x")
 y = tf.placeholder('float', [None, outputs], name="y")
 
-#neuralNetwork = lambda data : nnx.modelRelu(data, nNodes=nNodes, hiddenLayers=hiddenLayers, wInitMethod='normal', bInitMethod='normal')
+#neuralNetwork = lambda data : nnx.modelRelu(data, nNodes=nNodes, hiddenLayers=hiddenLayers, inputs=2, wInitMethod='normal', bInitMethod='normal')
 neuralNetwork = lambda data : nnx.modelSigmoid(data, nNodes=nNodes, hiddenLayers=hiddenLayers,inputs=2, wInitMethod='normal', bInitMethod='normal')
 
 print "---------------------------------------"
@@ -281,22 +298,27 @@ learning_rate_choice = 0.001 # Default for AdamOptimizer is 0.001
 testCases = 0
 print "Learning rate:", learning_rate_choice
 
+hl_list   = [8]
+node_list = [15]
+noPrint = True if len(node_list)+len(node_list) > 2 else False
 epochlossPerNPrev = 1e100   # "Guaranteed" worse than anything
 nNodesBest = 0; hLBest = 0; epochBest = 0
-for hiddenLayers in [10]:
-    for nNodes in [12]:
+for hiddenLayers in hl_list:
+    for nNodes in node_list:
         for epochs in totalEpochList:
             testCases += 1
             weights, biases, neurons, epochlossPerN = train_neural_network(x, epochs, \
-                    nNodes, hiddenLayers, saveFlag, plot=plotFlag,learning_rate_choice=learning_rate_choice)
-            print "\nHid.layers: %2.d, nodes/l: %2.d, epochs: %d, loss/N: %f" %(hiddenLayers,nNodes,epochs,epochlossPerN)
+                    nNodes, hiddenLayers, saveFlag, noPrint, plot=plotFlag,learning_rate_choice=learning_rate_choice)
+            print "\rHid.layers: %2.d, nodes/l: %2.d, epochs: %d, loss/N: %e" %(hiddenLayers,nNodes,epochs,epochlossPerN)
+            if not noPrint:
+                print " "
             if epochlossPerN < epochlossPerNPrev:
                 epochlossPerNPrev = epochlossPerN
                 nNodesBest = nNodes
                 hLBest     = hiddenLayers
                 epochBest  = epochs
 if testCases > 1: # Print out testing different hidden layers and number of nodes
-    print testCases, totalEpochList
+    #print testCases, totalEpochList
     print "---------------------------------------"
     print "Best combination found after %d epochs:" %epochBest
     print "Layers: %d, nodes/layer: %d, loss/N: %e" %(hLBest,nNodesBest,epochlossPerNPrev)
