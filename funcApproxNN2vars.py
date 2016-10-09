@@ -11,7 +11,7 @@ import sys,os
 import math
 
 
-def scoreFunc1(x,y,return2Darray=False):
+def scoreFunc1(x,y,return2Darray=False,returnMaxMin=False):
     N = x.size
     if return2Darray:
         x,y = np.meshgrid(x, y)
@@ -19,8 +19,16 @@ def scoreFunc1(x,y,return2Darray=False):
     else:
         z = np.zeros(N)
     # Formula that takes vectors or 2d-arrays
-    z = (2*np.exp(-20*(y-0.5)**2)*np.exp(-20*(x-0.5)**2) - 1.0) * y#* np.sin(x*4*np.pi)*np.sin(y*4*np.pi)
-    return z if not return2Darray else z.transpose()
+    z = np.sin(x*7*np.pi)*np.sin(y*7*np.pi)# * np.sin(x*np.pi)*np.sin(y*np.pi) #* np.exp(-20*(y-0.5)**2)*np.exp(-20*(x-0.5)**2)
+    """z  = 0.5*np.exp(-20*(y  )**2)*np.exp(-20*(x  )**2)#np.sin(x*6*np.pi)*np.sin(y*6*np.pi) * np.sin(x*np.pi)*np.sin(y*np.pi) #* np.exp(-20*(y-0.5)**2)*np.exp(-20*(x-0.5)**2)
+    z += 0.5*np.exp(-20*(y-1)**2)*np.exp(-20*(x  )**2)
+    z += 0.5*np.exp(-20*(y  )**2)*np.exp(-20*(x-1)**2)
+    z += 0.5*np.exp(-20*(y-1)**2)*np.exp(-20*(x-1)**2)
+    z += np.exp(-20*(y-0.5)**2)*np.exp(-20*(x-0.5)**2)"""
+    if not returnMaxMin:
+        return z if not return2Darray else z.transpose()
+    return np.max(z), np.min(z)
+
     # If you want some non-continous changes:
     """if not return2Darray:
         z = np.zeros(N)
@@ -91,18 +99,22 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, noPrint=Fals
             numberOfEpochs         += startEpoch
             saver.restore(sess, "SavedRuns/"+loadFileName)
 
-        bestTrainLoss = 1E100; bestTestLoss = 1E100; triggerNewLine = False; saveNow = False
+        bestTrainLoss = 1E100; bestTestLoss = 1E100; bestTestLossSinceLastPlot = 1E100
+        triggerNewLine = False; saveNow = False
 
         # Initiate some variables needed for plotting
-        plotLinearResolution = 100
+        plotLinearResolution = 150
         linPoints            = np.linspace(0,1,plotLinearResolution)
         zForPlot             = np.zeros((plotLinearResolution,plotLinearResolution))
         X, Y                 = np.meshgrid(linPoints, linPoints)
-        plotEveryNEpochs     = 50
+        plotEveryNEpochs     = 20
+        plotEveryPctImprov   = 1.0 - 7.0/100
         plotCount            = 0
+        zAxisMax, zAxisMin   = scoreFunc1(linPoints,linPoints,return2Darray=True,returnMaxMin=True)
         if loadFlag:
             plotCount = int(raw_input("Please input plotcount of last plot: [int]: "))
         plotNow              = False
+
         colormap_choice      = cm.BrBG
         # loop through epocs
         xTrain, yTrain, xTest, yTest = functionNormData(trainSize,testSize)
@@ -136,9 +148,11 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, noPrint=Fals
                               (epoch+1, numberOfEpochs, epochLoss/float(trainSize), testCost/float(testSize)))
                         sys.stdout.flush()
                     triggerNewLine = False
-                    plotNow        = True
-            if (plot and epoch % plotEveryNEpochs == 0) or (plotNow and plot):
-                plotNow = False
+                    #plotNow        = True
+            #if (plot and epoch % plotEveryNEpochs == 0) or (plotNow and plot):
+            #    plotNow = False
+            if plot and bestTestLossSinceLastPlot * plotEveryPctImprov > testCost:
+                bestTestLossSinceLastPlot = testCost
                 for row in xrange(plotLinearResolution):
                     rowValues = np.ones(plotLinearResolution)*linPoints[row]
                     xyForPlot = np.column_stack((rowValues,linPoints))
@@ -148,34 +162,49 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, noPrint=Fals
                 err = np.sum(np.abs(Z-zForPlot))/float(Z.size) # Average error
 
                 fig = plt.figure()
+                a = fig.add_subplot(1,2,1, projection='3d')
+                surf = a.plot_surface(X, Y, Z, rstride=1, cstride=1, cmap=colormap_choice,
+                                       linewidth=0, antialiased=False)
+                a.set_title('Actual function')
+                a.set_xlim3d(0, 1); a.set_ylim3d(0, 1); a.set_zlim3d(zAxisMin, zAxisMax)
+                a.set_xlabel('X axis'); a.set_ylabel('Y axis'); a.set_zlabel('Z axis')
+
+                a = fig.add_subplot(1,2,2, projection='3d')
+                surf = a.plot_surface(X, Y, zForPlot, rstride=1, cstride=1, cmap=colormap_choice,
+                                       linewidth=0, antialiased=False)
+                a.set_title('NN approx. Error: %.2e' %err)
+                a.set_xlim3d(0, 1); a.set_ylim3d(0, 1); a.set_zlim3d(zAxisMin, zAxisMax)
+                a.set_xlabel('X axis'); a.set_ylabel('Y axis'); a.set_zlabel('Z axis')
+                surf.set_clim(zAxisMin,zAxisMax)
+
+                plt.savefig("SomePlots/fig%d_epoch%d.png" %(plotCount,epoch), dpi=200)
+                plotCount += 1
+                plt.close()
+
+
+                """fig = plt.figure()
                 a=fig.add_subplot(2,3,1)
                 imgplot = plt.imshow(Z, cmap=colormap_choice)
                 a.set_title('Actual function')
-
                 a=fig.add_subplot(2,3,2)
                 imgplot = plt.imshow(zForPlot, cmap=colormap_choice)
                 a.set_title('NN approx. func.')
-
                 a=fig.add_subplot(2,3,3)
                 imgplot = plt.imshow(Z-zForPlot, cmap=colormap_choice)
                 a.set_title('Error NN: %.2e' %err)
-
                 a = fig.add_subplot(2,3,4, projection='3d')
                 surf = a.plot_surface(X, Y, Z, rstride=1, cstride=1, cmap=colormap_choice,
                                        linewidth=0, antialiased=False)
-
                 a = fig.add_subplot(2,3,5, projection='3d')
                 surf = a.plot_surface(X, Y, zForPlot, rstride=1, cstride=1, cmap=colormap_choice,
                                        linewidth=0, antialiased=False)
-
                 a = fig.add_subplot(2,3,6, projection='3d')
                 surf = a.plot_surface(X, Y, Z-zForPlot, rstride=1, cstride=1, cmap=colormap_choice,
                                        linewidth=0, antialiased=False)
 
                 plt.savefig("SomePlots/fig%d_epoch%d.png" %(plotCount,epoch), dpi=150)
                 plotCount += 1
-                plt.close()
-
+                plt.close()"""
                 # If saving is enabled, save the graph variables ('w', 'b')
                 if saveNow and saveFlag:
                     saveNow = False
