@@ -7,19 +7,51 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import tensorflow as tf
 import numpy as np
+import warnings
 import sys,os
-import math
+import glob
+#import math
 
+# Stop matplotlib from giving FutureWarning
+warnings.filterwarnings("ignore", category=FutureWarning, module="matplotlib")
+keepData = raw_input('\nDelete all previous plots and run-data? (y/n)')
+if keepData in ['y','yes']:
+    for someFile in glob.glob("SavedRuns/run*.dat"):
+        os.remove(someFile)
+    for someFile in glob.glob("SomePlots/fig*.png"):
+        os.remove(someFile)
 
 def scoreFunc1(x,y,return2Darray=False,returnMaxMin=False):
     N = x.size
     if return2Darray:
         x,y = np.meshgrid(x, y)
         z   = np.zeros(x.shape)
+        for i in xrange(N):
+            for j in xrange(N):
+                xi = x[i,j]; yi = y[i,j]
+                if   xi < 0.5 and yi < 0.5:
+                    z[i,j] = (yi-0.5) if yi >= xi else (xi-0.5)
+                elif xi > 0.5 and yi < 0.5:
+                    z[i,j] = 0.6*np.sin(xi*4*np.pi)*np.sin(yi*4*np.pi)
+                elif xi < 0.5 and yi > 0.5:
+                    z[i,j] = np.exp(-80*(yi-0.75)**2)*np.exp(-80*(xi-0.25)**2)
+                else: #xi > 0.5 and yi > 0.5:
+                    z[i,j] = -6*((xi-0.75)**2 - (yi-0.75)**2)
     else:
         z = np.zeros(N)
+        for i in xrange(N):
+            xi = x[i]; yi = y[i]
+            if   xi < 0.5 and yi < 0.5:
+                z[i] = (yi-0.5) if yi >= xi else (xi-0.5)
+            elif xi > 0.5 and yi < 0.5:
+                z[i] = np.sin(xi*4*np.pi)*np.sin(yi*4*np.pi)
+            elif xi < 0.5 and yi > 0.5:
+                z[i] = np.exp(-80*(yi-0.75)**2)*np.exp(-80*(xi-0.25)**2)
+            else: #xi > 0.5 and yi > 0.5:
+                z[i] = -6*((xi-0.75)**2 - (yi-0.75)**2)
     # Formula that takes vectors or 2d-arrays
-    z = np.sin(x*7*np.pi)*np.sin(y*7*np.pi)# * np.sin(x*np.pi)*np.sin(y*np.pi) #* np.exp(-20*(y-0.5)**2)*np.exp(-20*(x-0.5)**2)
+    #z = np.sin(x*7*np.pi)*np.sin(y*7*np.pi)# * np.sin(x*np.pi)*np.sin(y*np.pi) #* np.exp(-20*(y-0.5)**2)*np.exp(-20*(x-0.5)**2)
+
     """z  = 0.5*np.exp(-20*(y  )**2)*np.exp(-20*(x  )**2)#np.sin(x*6*np.pi)*np.sin(y*6*np.pi) * np.sin(x*np.pi)*np.sin(y*np.pi) #* np.exp(-20*(y-0.5)**2)*np.exp(-20*(x-0.5)**2)
     z += 0.5*np.exp(-20*(y-1)**2)*np.exp(-20*(x  )**2)
     z += 0.5*np.exp(-20*(y  )**2)*np.exp(-20*(x-1)**2)
@@ -28,32 +60,6 @@ def scoreFunc1(x,y,return2Darray=False,returnMaxMin=False):
     if not returnMaxMin:
         return z if not return2Darray else z.transpose()
     return np.max(z), np.min(z)
-
-    # If you want some non-continous changes:
-    """if not return2Darray:
-        z = np.zeros(N)
-        #z  = 2*np.exp(-20*(x-0.5)**2)*np.exp(-20*(y-0.5)**2) - 1.0
-        #z = np.sin(x*4*np.pi)*np.sin(y*4*np.pi)
-        for i in xrange(N):
-            xi = x[i]; yi = y[i]
-            #res[i] = math.exp(-20*(xi-0.5)**2)*math.exp(-20*(yi-0.5)**2)
-            if xi < 0.5:# and xi < 0.75 and yi > 0.25 and yi < 0.75:
-                z[i] = x[i]#np.sin(x[i]*4*np.pi)*np.cos(y[i]*4*np.pi + x[i]*4*np.pi)
-            else:
-                z[i] = 1.0-x[i]#np.sin(x[i]*4*np.pi)*np.cos(y[i]*4*np.pi + x[i]*4*np.pi)
-        return z
-    else:
-        X, Y = np.meshgrid(x, y)
-        Z    = np.zeros(X.shape)
-        #Z  = 2*np.exp(-20*(X-0.5)**2)*np.exp(-20*(Y-0.5)**2) - 1.0
-        #Z = np.sin(X*4*np.pi)*np.sin(Y*4*np.pi)
-        for i in xrange(N):
-            for j in xrange(N):
-                if X[i,j] < 0.5:# and X[i,j] < 0.75 and Y[i,j] > 0.25 and Y[i,j] < 0.75:
-                    Z[i,j] = X[i,j]#np.sin(X[i,j]*4*np.pi)*np.cos(Y[i,j]*4*np.pi + X[i,j]*4*np.pi)
-                else:
-                    Z[i,j] = 1.0-X[i,j]#np.sin(X[i,j]*4*np.pi)*np.cos(Y[i,j]*4*np.pi + X[i,j]*4*np.pi)
-        return Z.transpose()"""
 
 
 def functionNormData(trainSize,testSize):
@@ -99,7 +105,7 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, noPrint=Fals
             numberOfEpochs         += startEpoch
             saver.restore(sess, "SavedRuns/"+loadFileName)
 
-        bestTrainLoss = 1E100; bestTestLoss = 1E100; bestTestLossSinceLastPlot = 1E100
+        bestTrainLoss = 1E100; bestTestLoss = 1E100; bestTestLossSinceLastPlot = 1E100; prevErr = 1E100
         triggerNewLine = False; saveNow = False
 
         # Initiate some variables needed for plotting
@@ -108,7 +114,8 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, noPrint=Fals
         zForPlot             = np.zeros((plotLinearResolution,plotLinearResolution))
         X, Y                 = np.meshgrid(linPoints, linPoints)
         plotEveryNEpochs     = 20
-        plotEveryPctImprov   = 1.0 - 7.0/100
+        chosenPercent        = 13.0
+        plotEveryPctImprov   = 1.0 - chosenPercent/100
         plotCount            = 0
         zAxisMax, zAxisMin   = scoreFunc1(linPoints,linPoints,return2Darray=True,returnMaxMin=True)
         if loadFlag:
@@ -138,7 +145,7 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, noPrint=Fals
                     sys.stdout.flush()
             if epoch%1000 == 0:#saveEveryNepochs: # Save the next version of the neural network that is better than any previous
                 saveNow = True if epoch > 0 else False
-            if testCost < bestTestLoss: # and testCost//float(testSize) < 1.0:
+            if testCost < bestTestLoss:
                 bestTestLoss = testCost
                 bestEpochTestLoss = epoch
                 if triggerNewLine:
@@ -148,11 +155,10 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, noPrint=Fals
                               (epoch+1, numberOfEpochs, epochLoss/float(trainSize), testCost/float(testSize)))
                         sys.stdout.flush()
                     triggerNewLine = False
-                    #plotNow        = True
-            #if (plot and epoch % plotEveryNEpochs == 0) or (plotNow and plot):
-            #    plotNow = False
             if plot and bestTestLossSinceLastPlot * plotEveryPctImprov > testCost:
-                bestTestLossSinceLastPlot = testCost
+                bestTestLossSinceLastPlot = #testCost
+                chosenPercent            -= 0.25 if chosenPercent > 3.0 else 0
+                plotEveryPctImprov        = 1.0 - chosenPercent/100 # More plots later in the computation
                 for row in xrange(plotLinearResolution):
                     rowValues = np.ones(plotLinearResolution)*linPoints[row]
                     xyForPlot = np.column_stack((rowValues,linPoints))
@@ -160,26 +166,27 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, noPrint=Fals
 
                 Z   = scoreFunc1(linPoints,linPoints,return2Darray=True)
                 err = np.sum(np.abs(Z-zForPlot))/float(Z.size) # Average error
+                if err < prevErr: # Plot only if error is smaller!
+                    prevErr = err
+                    fig = plt.figure()
+                    a = fig.add_subplot(1,2,1, projection='3d')
+                    surf = a.plot_surface(X, Y, Z, rstride=1, cstride=1, cmap=colormap_choice,
+                                           linewidth=0, antialiased=False)
+                    a.set_title('Actual function')
+                    a.set_xlim3d(0, 1); a.set_ylim3d(0, 1); a.set_zlim3d(zAxisMin*1.2, zAxisMax*1.2)
+                    a.set_xlabel('X axis'); a.set_ylabel('Y axis'); a.set_zlabel('Z axis')
 
-                fig = plt.figure()
-                a = fig.add_subplot(1,2,1, projection='3d')
-                surf = a.plot_surface(X, Y, Z, rstride=1, cstride=1, cmap=colormap_choice,
-                                       linewidth=0, antialiased=False)
-                a.set_title('Actual function')
-                a.set_xlim3d(0, 1); a.set_ylim3d(0, 1); a.set_zlim3d(zAxisMin, zAxisMax)
-                a.set_xlabel('X axis'); a.set_ylabel('Y axis'); a.set_zlabel('Z axis')
+                    a = fig.add_subplot(1,2,2, projection='3d')
+                    surf = a.plot_surface(X, Y, zForPlot, rstride=1, cstride=1, cmap=colormap_choice,
+                                           linewidth=0, antialiased=False)
+                    a.set_title('NN approx. Error: %.2e' %err)
+                    a.set_xlim3d(0, 1); a.set_ylim3d(0, 1); a.set_zlim3d(zAxisMin*1.2, zAxisMax*1.2)
+                    a.set_xlabel('X axis'); a.set_ylabel('Y axis'); a.set_zlabel('Z axis')
+                    surf.set_clim(zAxisMin,zAxisMax)
 
-                a = fig.add_subplot(1,2,2, projection='3d')
-                surf = a.plot_surface(X, Y, zForPlot, rstride=1, cstride=1, cmap=colormap_choice,
-                                       linewidth=0, antialiased=False)
-                a.set_title('NN approx. Error: %.2e' %err)
-                a.set_xlim3d(0, 1); a.set_ylim3d(0, 1); a.set_zlim3d(zAxisMin, zAxisMax)
-                a.set_xlabel('X axis'); a.set_ylabel('Y axis'); a.set_zlabel('Z axis')
-                surf.set_clim(zAxisMin,zAxisMax)
-
-                plt.savefig("SomePlots/fig%d_epoch%d.png" %(plotCount,epoch), dpi=200)
-                plotCount += 1
-                plt.close()
+                    plt.savefig("SomePlots/fig%d_epoch%d.png" %(plotCount,epoch), dpi=200)
+                    plotCount += 1
+                    plt.close()
 
 
                 """fig = plt.figure()
@@ -281,8 +288,8 @@ else: # We need to parse the command line args
         #print "Index:",argIndex, "content:", sys.argv[argIndex]
         arg = sys.argv[argIndex]
         if isinteger(arg):
-            if int(arg)<800:
-                print "Number of epochs must be greater than 800. Exiting..."; sys.exit()
+            #if int(arg)<800:
+            #    print "Number of epochs must be greater than 800. Exiting..."; sys.exit()
             totalEpochList = [ (int(arg)) ]
         if arg == "-save":
             saveFlag = True
