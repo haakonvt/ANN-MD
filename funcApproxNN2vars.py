@@ -15,7 +15,7 @@ import glob
 # Stop matplotlib from giving FutureWarning
 warnings.filterwarnings("ignore", category=FutureWarning, module="matplotlib")
 keepData = raw_input('\nDelete all previous plots and run-data? (y/n)')
-if keepData in ['y','yes']:
+if keepData in ['y','yes','']:
     for someFile in glob.glob("SavedRuns/run*.dat"):
         os.remove(someFile)
     for someFile in glob.glob("SomePlots/fig*.png"):
@@ -26,7 +26,7 @@ def scoreFunc1(x,y,return2Darray=False,returnMaxMin=False):
     if return2Darray:
         x,y = np.meshgrid(x, y)
         z   = np.zeros(x.shape)
-        for i in xrange(N):
+        """for i in xrange(N):
             for j in xrange(N):
                 xi = x[i,j]; yi = y[i,j]
                 if   xi < 0.5 and yi < 0.5:
@@ -36,10 +36,10 @@ def scoreFunc1(x,y,return2Darray=False,returnMaxMin=False):
                 elif xi < 0.5 and yi > 0.5:
                     z[i,j] = np.exp(-80*(yi-0.75)**2)*np.exp(-80*(xi-0.25)**2)
                 else: #xi > 0.5 and yi > 0.5:
-                    z[i,j] = -6*((xi-0.75)**2 - (yi-0.75)**2)
+                    z[i,j] = -6*((xi-0.75)**2 - (yi-0.75)**2)"""
     else:
         z = np.zeros(N)
-        for i in xrange(N):
+        """for i in xrange(N):
             xi = x[i]; yi = y[i]
             if   xi < 0.5 and yi < 0.5:
                 z[i] = (yi-0.5) if yi >= xi else (xi-0.5)
@@ -48,9 +48,9 @@ def scoreFunc1(x,y,return2Darray=False,returnMaxMin=False):
             elif xi < 0.5 and yi > 0.5:
                 z[i] = np.exp(-80*(yi-0.75)**2)*np.exp(-80*(xi-0.25)**2)
             else: #xi > 0.5 and yi > 0.5:
-                z[i] = -6*((xi-0.75)**2 - (yi-0.75)**2)
+                z[i] = -6*((xi-0.75)**2 - (yi-0.75)**2)"""
     # Formula that takes vectors or 2d-arrays
-    #z = np.sin(x*7*np.pi)*np.sin(y*7*np.pi)# * np.sin(x*np.pi)*np.sin(y*np.pi) #* np.exp(-20*(y-0.5)**2)*np.exp(-20*(x-0.5)**2)
+    z = 0.5*np.sin(x*7*np.pi)*np.sin(y*7*np.pi) + 0.8*(np.sin(x*2*np.pi)*np.sin(y*2*np.pi))**2 + np.sin(x*np.pi)*np.sin(y*np.pi) #* np.exp(-20*(y-0.5)**2)*np.exp(-20*(x-0.5)**2)
 
     """z  = 0.5*np.exp(-20*(y  )**2)*np.exp(-20*(x  )**2)#np.sin(x*6*np.pi)*np.sin(y*6*np.pi) * np.sin(x*np.pi)*np.sin(y*np.pi) #* np.exp(-20*(y-0.5)**2)*np.exp(-20*(x-0.5)**2)
     z += 0.5*np.exp(-20*(y-1)**2)*np.exp(-20*(x  )**2)
@@ -109,12 +109,12 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, noPrint=Fals
         triggerNewLine = False; saveNow = False
 
         # Initiate some variables needed for plotting
-        plotLinearResolution = 150
+        plotLinearResolution = 100
         linPoints            = np.linspace(0,1,plotLinearResolution)
         zForPlot             = np.zeros((plotLinearResolution,plotLinearResolution))
         X, Y                 = np.meshgrid(linPoints, linPoints)
         plotEveryNEpochs     = 20
-        chosenPercent        = 13.0
+        chosenPercent        = 5
         plotEveryPctImprov   = 1.0 - chosenPercent/100
         plotCount            = 0
         zAxisMax, zAxisMin   = scoreFunc1(linPoints,linPoints,return2Darray=True,returnMaxMin=True)
@@ -155,19 +155,26 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, noPrint=Fals
                               (epoch+1, numberOfEpochs, epochLoss/float(trainSize), testCost/float(testSize)))
                         sys.stdout.flush()
                     triggerNewLine = False
-            if plot and bestTestLossSinceLastPlot * plotEveryPctImprov > testCost:
-                bestTestLossSinceLastPlot = #testCost
-                chosenPercent            -= 0.25 if chosenPercent > 3.0 else 0
-                plotEveryPctImprov        = 1.0 - chosenPercent/100 # More plots later in the computation
+            if plot and bestTestLossSinceLastPlot * plotEveryPctImprov > testCost and testCost/float(testSize) < 0.1 or epoch == 0:
+                bestTestLossSinceLastPlot = testCost
                 for row in xrange(plotLinearResolution):
                     rowValues = np.ones(plotLinearResolution)*linPoints[row]
                     xyForPlot = np.column_stack((rowValues,linPoints))
                     zForPlot[row,:] = sess.run(prediction, feed_dict={x: xyForPlot})[:,0]
+                """if plotEveryPctImprov[1]:
+                    zDiffMaxMin = np.abs(np.abs(np.max(zForPlot)) - np.abs(np.min(zForPlot)))
+                    if zDiffMaxMin > 0.1:
+                        plotEveryPctImprov = [1.0 - 3.0/100, False]
+                        print "Increased number of plots to be saved\n" """
 
                 Z   = scoreFunc1(linPoints,linPoints,return2Darray=True)
                 err = np.sum(np.abs(Z-zForPlot))/float(Z.size) # Average error
                 if err < prevErr: # Plot only if error is smaller!
+                    #zDiffMaxMin = np.abs(np.abs(np.max(zForPlot)) - np.abs(np.min(zForPlot)))
+                    #print zDiffMaxMin
                     prevErr = err
+                    chosenPercent     -= 0.15 if plotEveryPctImprov > 2.5 else 0.0
+                    plotEveryPctImprov = 1.0 - chosenPercent/100.0 # More plots later in the computation
                     fig = plt.figure()
                     a = fig.add_subplot(1,2,1, projection='3d')
                     surf = a.plot_surface(X, Y, Z, rstride=1, cstride=1, cmap=colormap_choice,
@@ -184,7 +191,7 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, noPrint=Fals
                     a.set_xlabel('X axis'); a.set_ylabel('Y axis'); a.set_zlabel('Z axis')
                     surf.set_clim(zAxisMin,zAxisMax)
 
-                    plt.savefig("SomePlots/fig%d_epoch%d.png" %(plotCount,epoch), dpi=200)
+                    plt.savefig("SomePlots/fig%d_epoch%d.png" %(plotCount,epoch), dpi=120)
                     plotCount += 1
                     plt.close()
 
@@ -306,7 +313,6 @@ else: # We need to parse the command line args
             print ">>> python nn_dxo.py 5000 -load -plot"
             sys.exit()
 
-# Pick out test data randomly from the data
 global trainData
 
 # reset so that variables are not given new names
@@ -314,10 +320,7 @@ tf.reset_default_graph()
 
 # number of samples
 testSize  = 1000
-trainSize = 4000
-
-# get real world input
-#xTrain, yTrain, xTest, yTest = functionNormData(trainSize,testSize)
+trainSize = 5000
 
 # number of inputs and outputs
 inputs  = 2
