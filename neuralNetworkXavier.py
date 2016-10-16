@@ -19,7 +19,7 @@ def init_weights(shape, layer, nameType, initMethod='normal'):
 
 
 
-def modelSigmoid(data, nNodes=10, hiddenLayers=3, inputs=3, outputs=1,
+def modelSigmoid(data, nNodes=10, hiddenLayers=3, inputs=2, outputs=1,
           wInitMethod='normal', bInitMethod='normal'):
 
     weights = []
@@ -54,6 +54,40 @@ def modelSigmoid(data, nNodes=10, hiddenLayers=3, inputs=3, outputs=1,
     return h_o, weights, biases, neurons
 
 
+
+def modelTanh(data, nNodes=10, hiddenLayers=3, inputs=2, outputs=1,
+          wInitMethod='normal', bInitMethod='normal'):
+
+    weights = []
+    biases  = []
+    neurons = []
+
+    # first hidden layer
+    w1 = init_weights([inputs, nNodes], 1, 'w', wInitMethod)
+    b1 = init_weights([nNodes], 1, 'b', bInitMethod)
+    h1 = tf.nn.tanh(tf.matmul(data, w1) + b1)
+    weights.append(w1)
+    biases.append(b1)
+    neurons.append(h1)
+
+    # following layers
+    for layer in range(1, hiddenLayers, 1):
+        w = init_weights([nNodes, nNodes], layer+1, 'w', wInitMethod)
+        b = init_weights([nNodes], layer+1, 'b', bInitMethod)
+        h = tf.nn.tanh(tf.matmul(neurons[layer-1], w) + b)
+        weights.append(w)
+        biases.append(b)
+        neurons.append(h)
+
+    # output layer
+    w_o = init_weights([nNodes, outputs], hiddenLayers+1, 'w', wInitMethod)
+    b_o = init_weights([outputs], hiddenLayers+1, 'b', bInitMethod)
+    h_o = tf.matmul(neurons[hiddenLayers-1], w_o) + b_o
+    weights.append(w_o)
+    biases.append(b_o)
+    neurons.append(h_o)
+
+    return h_o, weights, biases, neurons
 
 
 
@@ -94,7 +128,7 @@ def modelRelu(data, nNodes=10, hiddenLayers=3, inputs=3, outputs=1,
 
 
 
-def modelReluSigmoid(data, nNodes=10, hiddenLayers=3, inputs=1, outputs=1,
+def modelReluSigmoid(data, nNodes=10, hiddenLayers=3, inputs=3, outputs=1,
           wInitMethod='normal', bInitMethod='normal'):
 
     weights = []
@@ -130,14 +164,3 @@ def modelReluSigmoid(data, nNodes=10, hiddenLayers=3, inputs=1, outputs=1,
     neurons.append(h_o)
 
     return h_o, weights, biases, neurons
-
-
-
-if __name__ == '__main__':
-    N = 100
-    #data = np.linspace(0.9, 1.6, N, dtype='float32')
-    data = np.random.uniform(0.9, 1.6, N)
-    data.reshape([N,1])
-    data.astype('float32')
-    print data
-    model(data)
