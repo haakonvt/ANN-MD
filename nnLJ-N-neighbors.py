@@ -121,5 +121,5 @@ neuralNetwork = lambda data : nnx.modelSigmoid(data, nNodes=nNodes, hiddenLayers
                 inputs=input_vars, outputs=output_vars,wInitMethod='normal', bInitMethod='normal')
 
 print "---------------------------------------"
-epochs = 10000; nNodes = 20; hiddenLayers = 10
+epochs = int(sys.argv[1]); nNodes = 20; hiddenLayers = 10
 weights, biases, neurons, epochlossPerN = train_neural_network(x, epochs, nNodes, hiddenLayers)

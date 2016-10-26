@@ -26,8 +26,11 @@ def deleteOldData():
 def scoreFunc1(x,y,return2Darray=False,returnMaxMin=False):
     z   = np.zeros(x.shape) if return2Darray else np.zeros(x.size)
     # Convert to polar coordinates if need be
-    r = np.sqrt(x**2 + y**2); phi = np.arctan2(y, x)
-    z = np.cos(4*pi*r)*np.exp(-2*r**2) + 0.3*np.cos(16*phi)*r**2
+    r = np.sqrt(x**2 + y**2); theta = np.arctan2(y, x)
+    #z = np.cos(4*pi*r)*np.exp(-2*r**2) + 0.3*np.cos(16*phi)*r**2
+    #z = (0.8-r)**2 * (r<0.8)
+    f = np.sin(8*theta)
+    z = np.sign((f>0) * f) * np.exp(-r**2)
     if returnMaxMin:
         return np.max(z), np.min(z)
     return z # else
@@ -60,6 +63,7 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, noPrint=Fals
         prediction, weights, biases, neurons = neuralNetwork(x)
         cost = tf.nn.l2_loss(tf.sub(prediction, y))
         optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate_choice).minimize(cost)
+        #optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate_choice).minimize(cost) # Careful with this (need low learn rate)
 
         # Number of cycles of feed-forward and backpropagation
         numberOfEpochs    = epochs;
@@ -94,8 +98,14 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, noPrint=Fals
             if chosenPercent < minPlotDiff:
                 chosenPercent = minPlotDiff
         plotNow              = False
-
         colormap_choice      = cm.BrBG
+        for col in xrange(plotLinearResolution):
+            colValues = np.ones(plotLinearResolution)*linPoints[col]
+            xyForPlot = np.column_stack((colValues,linPoints))
+            zForPlot[:,col] = sess.run(prediction, feed_dict={x: xyForPlot})[:,0]
+        Z   = scoreFunc1(X,Y,return2Darray=True)
+        err = np.sum(np.abs(Z-zForPlot))/float(Z.size) # First average error
+
         # loop through epocs
         xTrain, yTrain, xTest, yTest = functionNormData(trainSize,testSize,axMin,axMax)
         for epoch in range(startEpoch, numberOfEpochs):
@@ -110,7 +120,7 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, noPrint=Fals
             if epoch%800 == 0:
                 triggerNewLine = True
                 # Generate new train data each 800th epoch:
-                xTrain, yTrain, _, __ = functionNormData(trainSize,testSize,axMin,axMax)
+                xTrain, yTrain, xTest, yTest = functionNormData(trainSize,testSize,axMin,axMax)
             if epoch%80  == 0 and numberOfEpochs > epoch+80:
                 if not noPrint:
                     sys.stdout.write('\r' + ' '*80) # White out line
@@ -131,17 +141,17 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, noPrint=Fals
                     triggerNewLine = False
             if plot and bestTestLossSinceLastPlot * plotEveryPctImprov > testCost and testCost/float(testSize) < 0.15 or epoch == 0:
                 bestTestLossSinceLastPlot = testCost
+                for col in xrange(plotLinearResolution):
+                    colValues = np.ones(plotLinearResolution)*linPoints[col]
+                    xyForPlot = np.column_stack((colValues,linPoints))
+                    zForPlot[:,col] = sess.run(prediction, feed_dict={x: xyForPlot})[:,0]
+                Z   = scoreFunc1(X,Y,return2Darray=True)
+                err = np.sum(np.abs(Z-zForPlot))/float(Z.size) # Average error
                 if err < prevErr: # Plot only if error is smaller!
-                    for col in xrange(plotLinearResolution):
-                        colValues = np.ones(plotLinearResolution)*linPoints[col]
-                        xyForPlot = np.column_stack((colValues,linPoints))
-                        zForPlot[:,col] = sess.run(prediction, feed_dict={x: xyForPlot})[:,0]
-
-                    Z   = scoreFunc1(X,Y,return2Darray=True)
-                    err = np.sum(np.abs(Z-zForPlot))/float(Z.size) # Average error
                     prevErr = err
                     chosenPercent     -= pIncr if chosenPercent > minPlotDiff else 0.0
                     plotEveryPctImprov = 1.0 - chosenPercent/100.0 # More plots later in the computation
+
                     """fig = plt.figure()
                     a = fig.add_subplot(1,2,1, projection='3d')
                     surf = a.plot_surface(X, Y, Z, rstride=1, cstride=1, cmap=colormap_choice,
@@ -168,6 +178,7 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, noPrint=Fals
                     a.set_title('Actual function')
                     a=fig.add_subplot(2,3,2)
                     imgplot = plt.imshow(zForPlot, cmap=colormap_choice)
+                    imgplot.set_clim(zAxisMin,zAxisMax)
                     a.set_title('NN approx. func.')
                     a=fig.add_subplot(2,3,3)
                     imgplot = plt.imshow(Z-zForPlot, cmap=colormap_choice)
@@ -256,11 +267,10 @@ else: # We need to parse the command line args
             print "Loading latest neural network as starting point"
         if arg == "-plot":
             plotFlag = True
-            print "Will plot best prediction after the simulation"
         if arg in ["h","help","-h","-help","--h","--help"]:
             print "Command line arguments possible: -save, -load and -plot."
             print "Also, you can specify the number of epochs (>800). Ex.:"
-            print ">>> python nn_dxo.py 5000 -load -plot"
+            print ">>> python funcApproxNN2vars.py vars 5000 -load -plot"
             sys.exit()
 
 if not loadFlag:
