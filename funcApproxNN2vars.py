@@ -16,21 +16,30 @@ import glob
 warnings.filterwarnings("ignore", category=FutureWarning, module="matplotlib")
 
 def deleteOldData():
-    keepData = raw_input('\nDelete all previous plots and run-data? (y/n)')
-    if keepData in ['y','yes','']:
-        for someFile in glob.glob("SavedRuns/run*.dat"):
-            os.remove(someFile)
-        for someFile in glob.glob("SomePlots/fig*.png"):
-            os.remove(someFile)
+    # Does folders exist?
+    foldersCheck = 0
+    for filename in ['SavedRuns','SomePlots']:
+        if not os.path.exists(filename):
+            os.makedirs(filename) # Create folders
+            foldersCheck += 1
+    if not foldersCheck == 2: # No old data, since both folders have just been created
+        keepData = raw_input('\nDelete all previous plots and run-data? (y/n)')
+        if keepData in ['y','yes','']:
+            for someFile in glob.glob("SavedRuns/run*.dat"):
+                os.remove(someFile)
+            for someFile in glob.glob("SomePlots/fig*.png"):
+                os.remove(someFile)
 
 def scoreFunc1(x,y,return2Darray=False,returnMaxMin=False):
     z   = np.zeros(x.shape) if return2Darray else np.zeros(x.size)
     # Convert to polar coordinates if need be
-    r = np.sqrt(x**2 + y**2); theta = np.arctan2(y, x)
+    r     = np.sqrt(x**2 + y**2)
+    theta = np.arctan2(y, x)
     #z = np.cos(4*pi*r)*np.exp(-2*r**2) + 0.3*np.cos(16*phi)*r**2
     #z = (0.8-r)**2 * (r<0.8)
-    f = np.sin(8*theta)
-    z = np.sign((f>0) * f) * np.exp(-r**2)
+    #f = np.sin(10*theta)*np.sin(4*pi*r)/2. * (r<=1)
+    #z  = np.tanh(r-1) + np.exp(-8*r**2)
+    z  = np.exp(-0.1*r**2) * ((np.sin(10*theta)+1)/2.)**(1.2+np.cos(6*pi*r))
     if returnMaxMin:
         return np.max(z), np.min(z)
     return z # else
@@ -82,14 +91,14 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, noPrint=Fals
         triggerNewLine = False; saveNow = False
 
         # Initiate "some" variables needed for plotting
-        plotLinearResolution = 120; axMin = -1; axMax = 1; dpi_choice = 150
+        plotLinearResolution = 603; axMin = -1; axMax = 1; dpi_choice = 350
         linPoints            = np.linspace(axMin,axMax,plotLinearResolution)
         zForPlot             = np.zeros((plotLinearResolution,plotLinearResolution))
         X, Y                 = np.meshgrid(linPoints, linPoints)
-        chosenPercent        = 15
-        minPlotDiff          = 2.5
+        chosenPercent        = 2.5
+        minPlotDiff          = 1.
         plotEveryPctImprov   = 1.0 - chosenPercent/100
-        pIncr                = 0.2
+        pIncr                = 0.05
         plotCount            = 0
         zAxisMax, zAxisMin   = scoreFunc1(X,Y,return2Darray=True,returnMaxMin=True)
         if loadFlag:
@@ -139,7 +148,7 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, noPrint=Fals
                               (epoch+1, numberOfEpochs, epochLoss/float(trainSize), testCost/float(testSize)))
                         sys.stdout.flush()
                     triggerNewLine = False
-            if plot and bestTestLossSinceLastPlot * plotEveryPctImprov > testCost and testCost/float(testSize) < 0.15 or epoch == 0:
+            if plot and bestTestLossSinceLastPlot * plotEveryPctImprov > testCost and testCost/float(testSize) < 0.8 or epoch == 0:
                 bestTestLossSinceLastPlot = testCost
                 for col in xrange(plotLinearResolution):
                     colValues = np.ones(plotLinearResolution)*linPoints[col]
@@ -301,8 +310,8 @@ learning_rate_choice = 0.001 # Default for AdamOptimizer is 0.001
 testCases = 0
 print "Learning rate:", learning_rate_choice
 
-hl_list   = [8]
-node_list = [15]
+hl_list   = [10]
+node_list = [30]
 noPrint = True if len(node_list)+len(node_list) > 2 else False
 epochlossPerNPrev = 1e100   # "Guaranteed" worse than anything
 nNodesBest = 0; hLBest = 0; epochBest = 0
