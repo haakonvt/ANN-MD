@@ -45,15 +45,43 @@ def scoreFunc1(x,y,return2Darray=False,returnMaxMin=False):
     return z # else
 
 
-def functionNormData(trainSize,testSize,axMin=0,axMax=1):
+def functionNormData(trainSize,testSize,axMin=0,axMax=1,aroundError=[None,None]):
     score = scoreFunc1
+    if not aroundError[0]:
+        xRandArray = np.random.uniform(axMin, axMax, trainSize)
+        yRandArray = np.random.uniform(axMin, axMax, trainSize)
 
-    xRandArray = np.random.uniform(axMin, axMax, trainSize)
-    yRandArray = np.random.uniform(axMin, axMax, trainSize)
+        x_train = np.column_stack((xRandArray,yRandArray))
+        y_train = score(xRandArray, yRandArray)
+        y_train = y_train.reshape([trainSize,1])
+    else:
+        # Can train on data outside the interval of interest for precision
+        """xLow = aroundError[0]*0.9; xHigh = aroundError[0]*1.1 # for random.uniform
+        yLow = aroundError[1]*0.9; yHigh = aroundError[1]*1.1
+        xRandArray = np.random.uniform(xLow, xHigh, int(trainSize/10.))
+        yRandArray = np.random.uniform(yLow, yHigh, int(trainSize/10.))"""
 
-    x_train = np.column_stack((xRandArray,yRandArray))
-    y_train = score(xRandArray, yRandArray)
-    y_train = y_train.reshape([trainSize,1])
+        stddev = 0.5; trainSize2 = int(trainSize/10.)
+        xRandArray = np.random.normal(aroundError[0], stddev, trainSize2)
+        yRandArray = np.random.normal(aroundError[1], stddev, trainSize2)
+
+        index = -1
+        for x,y in zip(xRandArray,yRandArray):
+            index += 1
+            while True:
+                if x < -1 or x > 1:
+                    x                 = np.random.normal(aroundError[0], stddev, 1)
+                    xRandArray[index] = x
+                    continue
+                if y < -1 or y > 1:
+                    y                 = np.random.normal(aroundError[0], stddev, 1)
+                    yRandArray[index] = y
+                    continue
+                break
+
+        x_train = np.column_stack((xRandArray,yRandArray))
+        y_train = score(xRandArray, yRandArray)
+        y_train = y_train.reshape([trainSize2,1])
 
     xRandArray = np.random.uniform(axMin, axMax, testSize)
     yRandArray = np.random.uniform(axMin, axMax, testSize)
@@ -88,17 +116,17 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, noPrint=Fals
             saver.restore(sess, "SavedRuns/"+loadFileName)
 
         bestTrainLoss = 1E100; bestTestLoss = 1E100; bestTestLossSinceLastPlot = 1E100; prevErr = 1E100
-        triggerNewLine = False; saveNow = False
+        triggerNewLine = False; saveNow = False; aroundError=[None,None]
 
         # Initiate "some" variables needed for plotting
-        plotLinearResolution = 603; axMin = -1; axMax = 1; dpi_choice = 350
+        plotLinearResolution = 101; axMin = -1; axMax = 1; dpi_choice = 90
         linPoints            = np.linspace(axMin,axMax,plotLinearResolution)
         zForPlot             = np.zeros((plotLinearResolution,plotLinearResolution))
         X, Y                 = np.meshgrid(linPoints, linPoints)
-        chosenPercent        = 2.5
-        minPlotDiff          = 1.
+        chosenPercent        = 5
+        minPlotDiff          = 2.
         plotEveryPctImprov   = 1.0 - chosenPercent/100
-        pIncr                = 0.05
+        pIncr                = 0.1
         plotCount            = 0
         zAxisMax, zAxisMin   = scoreFunc1(X,Y,return2Darray=True,returnMaxMin=True)
         if loadFlag:
@@ -124,12 +152,23 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, noPrint=Fals
             # compute test set loss
             # THIS IS MAYBE USED TO TRAIN?? Gotta check!!
             #_, testCost = sess.run(prediction, feed_dict={x: xTest})
-            _, testCost = sess.run([optimizer, cost], feed_dict={x: xTest, y: yTest})
+            testCost = sess.run(cost, feed_dict={x: xTest, y: yTest})
 
-            if epoch%800 == 0:
+            if epoch%100 == 0:
                 triggerNewLine = True
                 # Generate new train data each 800th epoch:
-                xTrain, yTrain, xTest, yTest = functionNormData(trainSize,testSize,axMin,axMax)
+                if testCost/float(testSize) > 1E100:
+                    xTrain, yTrain, xTest, yTest = functionNormData(trainSize,testSize,axMin,axMax)
+                else:
+                    # New experimental method: Give normal random numbers around largest error:
+                    _, __, xTest2, yTest2 = functionNormData(trainSize,testSize)
+                    errA = np.abs(sess.run(prediction, feed_dict={x: xTest2, y: yTest2})[:,0])
+                    eAI  = np.argmax(errA)
+                    #errIndex       = #np.unravel_index(errArray.argmax(), errArray.shape)
+                    aroundError[0] = xTest[eAI,0] # (1000, 2)
+                    aroundError[1] = xTest[eAI,1]
+                    print "\n",aroundError, eAI
+                    xTrain, yTrain, xTest, yTest = functionNormData(trainSize,testSize,axMin,axMax,aroundError)
             if epoch%80  == 0 and numberOfEpochs > epoch+80:
                 if not noPrint:
                     sys.stdout.write('\r' + ' '*80) # White out line
@@ -148,15 +187,16 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, noPrint=Fals
                               (epoch+1, numberOfEpochs, epochLoss/float(trainSize), testCost/float(testSize)))
                         sys.stdout.flush()
                     triggerNewLine = False
-            if plot and bestTestLossSinceLastPlot * plotEveryPctImprov > testCost and testCost/float(testSize) < 0.8 or epoch == 0:
+            if epoch%100 == 0: #if plot and bestTestLossSinceLastPlot * plotEveryPctImprov > testCost and testCost/float(testSize) < 0.1 or epoch == 0:
                 bestTestLossSinceLastPlot = testCost
                 for col in xrange(plotLinearResolution):
                     colValues = np.ones(plotLinearResolution)*linPoints[col]
                     xyForPlot = np.column_stack((colValues,linPoints))
                     zForPlot[:,col] = sess.run(prediction, feed_dict={x: xyForPlot})[:,0]
-                Z   = scoreFunc1(X,Y,return2Darray=True)
-                err = np.sum(np.abs(Z-zForPlot))/float(Z.size) # Average error
-                if err < prevErr: # Plot only if error is smaller!
+                Z        = scoreFunc1(X,Y,return2Darray=True)
+                errArray = np.abs(Z-zForPlot)
+                err      = np.sum(errArray)/float(Z.size) # Average error
+                if True:#err < prevErr: # Plot only if error is smaller!
                     prevErr = err
                     chosenPercent     -= pIncr if chosenPercent > minPlotDiff else 0.0
                     plotEveryPctImprov = 1.0 - chosenPercent/100.0 # More plots later in the computation
