@@ -18,16 +18,18 @@ warnings.filterwarnings("ignore", category=FutureWarning, module="matplotlib")
 def deleteOldData():
     # Does folders exist?
     foldersCheck = 0
-    for filename in ['SavedRuns','SomePlots']:
+    for filename in ['SavedRuns','SomePlots','SavedGraphs']:
         if not os.path.exists(filename):
             os.makedirs(filename) # Create folders
             foldersCheck += 1
-    if not foldersCheck == 2: # No old data, since both folders have just been created
-        keepData = raw_input('\nDelete all previous plots and run-data? (y/n)')
+    if not foldersCheck == 3: # No old data, since folders have just been created
+        keepData = raw_input('\nDelete all previous plots, run- and graph-data? (y/yes/enter)')
         if keepData in ['y','yes','']:
             for someFile in glob.glob("SavedRuns/run*.dat"):
                 os.remove(someFile)
             for someFile in glob.glob("SomePlots/fig*.png"):
+                os.remove(someFile)
+            for someFile in glob.glob("SavedGraphs/tf_graph_WB*.txt"):
                 os.remove(someFile)
 
 def scoreFunc1(x,y,return2Darray=False,returnMaxMin=False):
@@ -39,7 +41,8 @@ def scoreFunc1(x,y,return2Darray=False,returnMaxMin=False):
     #z = (0.8-r)**2 * (r<0.8)
     #f = np.sin(10*theta)*np.sin(4*pi*r)/2. * (r<=1)
     #z  = np.tanh(r-1) + np.exp(-8*r**2)
-    z  = np.exp(-0.1*r**2) * ((np.sin(10*theta)+1)/2.)**(1.2+np.cos(6*pi*r))
+    #z  = np.exp(-0.1*r**2) * ((np.sin(10*theta)+1)/2.)**(1.2+np.cos(6*pi*r))
+    z = theta
     if returnMaxMin:
         return np.max(z), np.min(z)
     return z # else
@@ -116,7 +119,7 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, noPrint=Fals
             saver.restore(sess, "SavedRuns/"+loadFileName)
 
         bestTrainLoss = 1E100; bestTestLoss = 1E100; bestTestLossSinceLastPlot = 1E100; prevErr = 1E100
-        triggerNewLine = False; saveNow = False; aroundError=[None,None]
+        triggerNewLine = False; saveNow = False; aroundError=[None,None]; aSolutionHasBeenSaved = False
 
         # Initiate "some" variables needed for plotting
         plotLinearResolution = 101; axMin = -1; axMax = 1; dpi_choice = 90
@@ -157,7 +160,7 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, noPrint=Fals
             if epoch%100 == 0:
                 triggerNewLine = True
                 # Generate new train data each 800th epoch:
-                if testCost/float(testSize) > 1E100:
+                if True:#testCost/float(testSize) > 1E100:
                     xTrain, yTrain, xTest, yTest = functionNormData(trainSize,testSize,axMin,axMax)
                 else:
                     # New experimental method: Give normal random numbers around largest error:
@@ -187,7 +190,7 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, noPrint=Fals
                               (epoch+1, numberOfEpochs, epochLoss/float(trainSize), testCost/float(testSize)))
                         sys.stdout.flush()
                     triggerNewLine = False
-            if epoch%100 == 0: #if plot and bestTestLossSinceLastPlot * plotEveryPctImprov > testCost and testCost/float(testSize) < 0.1 or epoch == 0:
+            if plot and bestTestLossSinceLastPlot * plotEveryPctImprov > testCost and testCost/float(testSize) < 0.1 or epoch == 0:
                 bestTestLossSinceLastPlot = testCost
                 for col in xrange(plotLinearResolution):
                     colValues = np.ones(plotLinearResolution)*linPoints[col]
@@ -250,13 +253,49 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, noPrint=Fals
                     plt.close()
                 # If saving is enabled, save the graph variables ('w', 'b')
                 if saveNow and saveFlag:
+                    aSolutionHasBeenSaved = True
                     saveNow = False
                     saveFileName = "SavedRuns/run" + str(epoch) + ".dat"
                     saver.save(sess, saveFileName, write_meta_graph=False)
-
+                    if saveGraph: # Write the current best weights and biases to file
+                        saveGraphFunc(sess, weights, biases, epoch)
+        # Write weights and biases to file when training is finished, if this is not yet done
+        if not aSolutionHasBeenSaved and saveGraph:
+            saveGraphFunc(sess, weights, biases, epoch)
     sys.stdout.write('\r' + ' '*80) # White out line for sake of pretty command line output lol
     return weights, biases, neurons, bestTestLoss/float(testSize)
 
+def saveGraphFunc(sess, weights, biases, epoch):
+    try:
+        os.mkdir("SavedGraphs")
+    except:
+        pass
+    saveGraphName = "SavedGraphs/tf_graph_WB_%d.txt" %(epoch)
+    with open(saveGraphName, 'w') as outFile:
+        outStr = "%1d %1d %s" % (hl_list[0], node_list[0], "sigmoid")
+        outFile.write(outStr + '\n')
+        size = len(sess.run(weights))
+        for i in range(size):
+            i_weights = sess.run(weights[i])
+            if i < size-1:
+                for j in range(len(i_weights)):
+                    for k in range(len(i_weights[0])):
+                        outFile.write("%g" % i_weights[j][k])
+                        outFile.write(" ")
+                    outFile.write("\n")
+            else:
+                for j in range(len(i_weights[0])):
+                    for k in range(len(i_weights)):
+                        outFile.write("%g" % i_weights[k][j])
+                        outFile.write(" ")
+                    outFile.write("\n")
+        outFile.write("\n")
+        for biasVariable in biases:
+            i_biases = sess.run(biasVariable)
+            for j in range(len(i_biases)):
+                outFile.write("%g" % i_biases[j])
+                outFile.write(" ")
+            outFile.write("\n")
 
 def findLoadFileName():
     if os.path.isdir("SavedRuns"):
@@ -294,32 +333,34 @@ def isinteger(x):
 ##### main #####
 #--------------#
 cmdArgs  = len(sys.argv)-1
-totalEpochList = [1000]
+totalEpochs = 1000
 loadFileName = None; saveFileName = None
 global loadFlag; global plotFlag
-saveFlag, loadFlag, plotFlag = False, False, False
+saveFlag, loadFlag, plotFlag, saveGraph = False, False, False, False
 if cmdArgs < 1: # No input from user, running default
     pass
 else: # We need to parse the command line args
     for argIndex in range(1,cmdArgs+1):
-        #print "Index:",argIndex, "content:", sys.argv[argIndex]
         arg = sys.argv[argIndex]
         if isinteger(arg):
-            #if int(arg)<800:
-            #    print "Number of epochs must be greater than 800. Exiting..."; sys.exit()
-            totalEpochList = [ (int(arg)) ]
+            totalEpochs = int(arg)
+        if arg in ["-graph", "-savegraph"]:
+            saveGraph = True
+            print "Best version of the neural net will be saved (weights & biases) as numbers"
+            if not saveFlag and "-save" not in sys.argv:
+                arg = "-save"
         if arg == "-save":
             saveFlag = True
-            print "The neural network (weights & biases) will be saved periodically"
+            print "The neural network will be stored periodically for easy restart of calc."
         if arg == "-load":
-            loadFlag     = True
+            loadFlag = True
             print "Loading latest neural network as starting point"
         if arg == "-plot":
             plotFlag = True
         if arg in ["h","help","-h","-help","--h","--help"]:
-            print "Command line arguments possible: -save, -load and -plot."
-            print "Also, you can specify the number of epochs (>800). Ex.:"
-            print ">>> python funcApproxNN2vars.py vars 5000 -load -plot"
+            print "Command line arguments possible: -save, -load, -plot"
+            print "Also, you can specify the number of epochs. Example:"
+            print ">>> python funcApproxNN2vars.py 5000 -load -plot"
             sys.exit()
 
 if not loadFlag:
@@ -350,27 +391,30 @@ learning_rate_choice = 0.001 # Default for AdamOptimizer is 0.001
 testCases = 0
 print "Learning rate:", learning_rate_choice
 
-hl_list   = [10]
-node_list = [30]
+hl_list   = [4]
+node_list = [5]
+# If saveing graph, you cannot test multiple values:
+if len(hl_list) > 1 or len(node_list) > 1:
+    print "You cannot test multiple versions of HL and neurons AND save graph."
+    hl_list   = [int(raw_input("Input the number of hidden layers: "))]
+    node_list = [int(raw_input("Input the number of neurons per layer: "))]
 noPrint = True if len(node_list)+len(node_list) > 2 else False
 epochlossPerNPrev = 1e100   # "Guaranteed" worse than anything
 nNodesBest = 0; hLBest = 0; epochBest = 0
 for hiddenLayers in hl_list:
     for nNodes in node_list:
-        for epochs in totalEpochList:
-            testCases += 1
-            weights, biases, neurons, epochlossPerN = train_neural_network(x, epochs, \
-                    nNodes, hiddenLayers, saveFlag, noPrint, plot=plotFlag,learning_rate_choice=learning_rate_choice)
-            print "\rHid.layers: %2.d, nodes/l: %2.d, epochs: %d, loss/N: %e" %(hiddenLayers,nNodes,epochs,epochlossPerN)
-            if not noPrint:
-                print " "
-            if epochlossPerN < epochlossPerNPrev:
-                epochlossPerNPrev = epochlossPerN
-                nNodesBest = nNodes
-                hLBest     = hiddenLayers
-                epochBest  = epochs
+        testCases += 1
+        weights, biases, neurons, epochlossPerN = train_neural_network(x, totalEpochs, \
+                nNodes, hiddenLayers, saveFlag, noPrint, plot=plotFlag,learning_rate_choice=learning_rate_choice)
+        print "\rHid.layers: %2.d, nodes/l: %2.d, epochs: %d, loss/N: %e" %(hiddenLayers,nNodes,totalEpochs,epochlossPerN)
+        if not noPrint:
+            print " "
+        if epochlossPerN < epochlossPerNPrev:
+            epochlossPerNPrev = epochlossPerN
+            nNodesBest = nNodes
+            hLBest     = hiddenLayers
+            epochBest  = totalEpochs
 if testCases > 1: # Print out testing different hidden layers and number of nodes
-    #print testCases, totalEpochList
     print "---------------------------------------"
     print "Best combination found after %d epochs:" %epochBest
     print "Layers: %d, nodes/layer: %d, loss/N: %e" %(hLBest,nNodesBest,epochlossPerNPrev)
