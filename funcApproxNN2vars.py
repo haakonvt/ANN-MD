@@ -42,7 +42,7 @@ def scoreFunc1(x,y,return2Darray=False,returnMaxMin=False):
     #f = np.sin(10*theta)*np.sin(4*pi*r)/2. * (r<=1)
     #z  = np.tanh(r-1) + np.exp(-8*r**2)
     #z  = np.exp(-0.1*r**2) * ((np.sin(10*theta)+1)/2.)**(1.2+np.cos(6*pi*r))
-    z = theta
+    z = np.sin(2*theta)
     if returnMaxMin:
         return np.max(z), np.min(z)
     return z # else
@@ -121,8 +121,12 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, noPrint=Fals
         bestTrainLoss = 1E100; bestTestLoss = 1E100; bestTestLossSinceLastPlot = 1E100; prevErr = 1E100
         triggerNewLine = False; saveNow = False; aroundError=[None,None]; aSolutionHasBeenSaved = False
 
-        # Initiate "some" variables needed for plotting
-        plotLinearResolution = 101; axMin = -1; axMax = 1; dpi_choice = 90
+        """
+        #############################################
+        Initiate "some" variables needed for plotting
+        #############################################
+        """
+        plotLinearResolution = 31; axMin = -1; axMax = 1; dpi_choice = 60
         linPoints            = np.linspace(axMin,axMax,plotLinearResolution)
         zForPlot             = np.zeros((plotLinearResolution,plotLinearResolution))
         X, Y                 = np.meshgrid(linPoints, linPoints)
@@ -157,11 +161,13 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, noPrint=Fals
             #_, testCost = sess.run(prediction, feed_dict={x: xTest})
             testCost = sess.run(cost, feed_dict={x: xTest, y: yTest})
 
+            # Create new data for next iteration
+            xTrain, yTrain, xTest, yTest = functionNormData(trainSize,testSize,axMin,axMax)
             if epoch%100 == 0:
                 triggerNewLine = True
-                # Generate new train data each 800th epoch:
                 if True:#testCost/float(testSize) > 1E100:
-                    xTrain, yTrain, xTest, yTest = functionNormData(trainSize,testSize,axMin,axMax)
+                    pass
+                    # xTrain, yTrain, xTest, yTest = functionNormData(trainSize,testSize,axMin,axMax) # BAD BAD BAD
                 else:
                     # New experimental method: Give normal random numbers around largest error:
                     _, __, xTest2, yTest2 = functionNormData(trainSize,testSize)
@@ -372,8 +378,8 @@ global trainData
 tf.reset_default_graph()
 
 # number of samples
-testSize  = 1000
-trainSize = 5000
+testSize  = 500
+trainSize = 1000
 
 # number of inputs and outputs
 inputs  = 2
@@ -393,7 +399,7 @@ print "Learning rate:", learning_rate_choice
 
 hl_list   = [4]
 node_list = [5]
-# If saveing graph, you cannot test multiple values:
+# If saving graph, you cannot test multiple values:
 if len(hl_list) > 1 or len(node_list) > 1:
     print "You cannot test multiple versions of HL and neurons AND save graph."
     hl_list   = [int(raw_input("Input the number of hidden layers: "))]

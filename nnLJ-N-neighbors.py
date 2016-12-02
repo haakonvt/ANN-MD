@@ -23,17 +23,32 @@ def deleteOldData():
         for someFile in glob.glob("SavedPlotsNeigh/fig*.png"):
             os.remove(someFile)
 
+# OLD n neighbors x,y,z
+# def createData(trainSize,testSize,neighbors=5):
+#     forceCalc = lambda s: 1.0/s**12 - 1.0/s**6
+#     low = 0.9;  high = 1.6;  ts = trainSize;  n = neighbors
+#     # Want random numbers in the discontinous interval [-1.6 --> -0.9 , 0.9 --> 1.6]
+#     def pureCreation(size,n):
+#         dim       = (ts,n*3) # size istedetfor ts???
+#         trainData = np.random.uniform(low, high, dim) * np.random.choice([-1,1], dim)
+#         tDataSol  = np.zeros((ts,3)) # size istedetfor ts???
+#         for i in [1,2,3]:# Sum up the neighbors forces
+#             tDataSol[:,i-1] = np.sum(forceCalc(trainData[:,(i-1)*n:i*n]),axis=1)
+#         return trainData,tDataSol
+#     # Create the data
+#     trainD, trainDS = pureCreation(trainSize,neighbors)
+#     testD,   testDS = pureCreation(testSize, neighbors)
+#     return trainD, trainDS, testD, testDS
 
 def createData(trainSize,testSize,neighbors=5):
-    forceCalc = lambda s: 1.0/s**12 - 1.0/s**6
-    low = 0.9;  high = 1.6;  ts = trainSize;  n = neighbors
-    # Want random numbers in the discontinous interval [-1.6 --> -0.9 , 0.9 --> 1.6]
+    """ Only coordinate is R """
+    PES = lambda s: 1.0/s**12 - 1.0/s**6 # Symmetric function
+    low = 0.8;  high = 2.5;  ts = trainSize;  n = neighbors
     def pureCreation(size,n):
-        dim       = (ts,n*3)
-        trainData = np.random.uniform(low, high, dim) * np.random.choice([-1,1], dim)
-        tDataSol  = np.zeros((ts,3))
-        for i in [1,2,3]:# Sum up the neighbors forces
-            tDataSol[:,i-1] = np.sum(forceCalc(trainData[:,(i-1)*n:i*n]),axis=1)
+        trainData = np.random.uniform(low, high, size)
+        tDataSol  = np.zeros(size)
+        # Sum up the neighbors forces
+        tDataSol[:] = np.sum( PES(trainData),axis=1 )
         return trainData,tDataSol
     # Create the data
     trainD, trainDS = pureCreation(trainSize,neighbors)
