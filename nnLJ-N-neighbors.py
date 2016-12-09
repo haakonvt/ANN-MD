@@ -55,7 +55,6 @@ def createData(trainSize,testSize,neighbors=5):
     testD,   testDS = pureCreation(testSize, neighbors)
     return trainD, trainDS, testD, testDS
 
-
 def train_neural_network(x, epochs, nNodes, hiddenLayers):
     # Begin session
     with tf.Session() as sess:
@@ -110,10 +109,41 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers):
     return weights, biases, neurons, bestTestLoss/float(testSize)
 
 
+def createDataCFDA(trainSize,testSize,neighbors=5):
+    """
+    Train with both potential and forces
+    """
+    PES    = lambda s:  1.0/s**12 - 1.0/s**6 # Lennard Jones pot. energy
+    FORCES = lambda s: 12.0/s**13 - 6.0/s**7 # Analytic derivative of LJ with minus sign: F = -d/dx Ep
+
+    # This gives r in range 0.8 --> 2.5
+    low  = np.sqrt(0.8**2/3.)
+    high = np.sqrt(2.5**2/3.)
+    # print low,high
+    nInputs = np.zeros((trainSize,neighbors,4)) # Cube object
+    for i in range(neighbors):
+        # x = np.random.uniform(0.5, 2.2, trainSize)
+        # y = np.random.uniform(0.5, 2.2, trainSize)
+        # z = np.random.uniform(0.5, 2.2, trainSize)
+        # r = np.sqrt(x**2 + y**2 + z**2)
+        nInputs[:,i,0] = np.random.uniform(low, high, trainSize) # this is x
+        nInputs[:,i,1] = np.random.uniform(low, high, trainSize) # y
+        nInputs[:,i,2] = np.random.uniform(low, high, trainSize) # z
+        nInputs[:,i,3] = np.sqrt(nInputs[:,i,0]**2 + nInputs[:,i,1]**2 + nInputs[:,i,2]**2) # r = sqrt(x^2 + ...)
+    #print nInputs
+    plt.hist(nInputs[:,:,3],bins=70)
+    plt.show()
+    # Input: [x, y, z, r]
+    # Output: [Ep, Fx, Fy, Fz]
+
 #--------------#
 ##### main #####
 #--------------#
-global trainData
+createDataCFDA(100000,3,neighbors=1)
+sys.exit(0)
+
+
+"""global trainData
 
 # reset so that variables are not given new names
 tf.reset_default_graph()
@@ -138,3 +168,4 @@ neuralNetwork = lambda data : nnx.modelSigmoid(data, nNodes=nNodes, hiddenLayers
 print "---------------------------------------"
 epochs = int(sys.argv[1]); nNodes = 20; hiddenLayers = 10
 weights, biases, neurons, epochlossPerN = train_neural_network(x, epochs, nNodes, hiddenLayers)
+"""

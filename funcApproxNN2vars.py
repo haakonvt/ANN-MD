@@ -377,9 +377,9 @@ global trainData
 # reset so that variables are not given new names
 tf.reset_default_graph()
 
-# number of samples
-testSize  = 500
-trainSize = 1000
+# number of samples per batch
+testSize  = 100
+trainSize = 1500
 
 # number of inputs and outputs
 inputs  = 2
@@ -397,13 +397,14 @@ learning_rate_choice = 0.001 # Default for AdamOptimizer is 0.001
 testCases = 0
 print "Learning rate:", learning_rate_choice
 
-hl_list   = [4]
-node_list = [5]
+hl_list   = [1,2,3,4,5]
+node_list = [2,3,4,5]
 # If saving graph, you cannot test multiple values:
-if len(hl_list) > 1 or len(node_list) > 1:
-    print "You cannot test multiple versions of HL and neurons AND save graph."
-    hl_list   = [int(raw_input("Input the number of hidden layers: "))]
-    node_list = [int(raw_input("Input the number of neurons per layer: "))]
+if saveFlag or loadFlag or saveGraph or plotFlag:
+    if len(hl_list) > 1 or len(node_list) > 1:
+        print "You cannot test multiple versions of HL and neurons AND save graph."
+        hl_list   = [int(raw_input("Input the number of hidden layers: "))]
+        node_list = [int(raw_input("Input the number of neurons per layer: "))]
 noPrint = True if len(node_list)+len(node_list) > 2 else False
 epochlossPerNPrev = 1e100   # "Guaranteed" worse than anything
 nNodesBest = 0; hLBest = 0; epochBest = 0
