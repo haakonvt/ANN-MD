@@ -5,8 +5,8 @@ from mpl_toolkits.mplot3d import Axes3D
 import neuralNetworkXavier as nnx
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
+from math import pi,sqrt
 import tensorflow as tf
-from math import pi
 import numpy as np
 import warnings
 import sys,os
@@ -86,10 +86,11 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers):
             #_, testCost = sess.run(prediction, feed_dict={x: xTest})
             _, testCost = sess.run([optimizer, cost], feed_dict={x: xTest, y: yTest})
 
+            # Generate new data
+            xTrain, yTrain, xTest, yTest = createDataCFDA(trainSize,testSize)
+
             if epoch%800 == 0:
                 triggerNewLine = True
-                # Generate new train data each 800th epoch:
-                xTrain, yTrain, _, __ = createData(trainSize,testSize)
             if epoch%80  == 0 and numberOfEpochs > epoch+80:
                 sys.stdout.write('\r' + ' '*80) # White out line
                 sys.stdout.write('\rEpoch %5d out of %5d trainloss/N: %10g, testloss/N: %10g' % \
@@ -110,36 +111,79 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers):
 
 
 def createDataCFDA(trainSize,testSize,neighbors=5):
+    if neighbors <= 1:
+        print "This code is meant for training a NN with more than one neighbor."
+        print "Thus, the number of neighbors will be changed to 20"
+        print "...done"
     """
     Train with both potential and forces
+    # Input:  [x,   y,  z,  r]
+    # Output: [Ep, Fx, Fy, Fz]
     """
     PES    = lambda s:  1.0/s**12 - 1.0/s**6 # Lennard Jones pot. energy
     FORCES = lambda s: 12.0/s**13 - 6.0/s**7 # Analytic derivative of LJ with minus sign: F = -d/dx Ep
 
-    # This gives r in range 0.8 --> 2.5
-    low  = np.sqrt(0.8**2/3.)
-    high = np.sqrt(2.5**2/3.)
-    # print low,high
-    nInputs = np.zeros((trainSize,neighbors,4)) # Cube object
-    for i in range(neighbors):
-        # x = np.random.uniform(0.5, 2.2, trainSize)
-        # y = np.random.uniform(0.5, 2.2, trainSize)
-        # z = np.random.uniform(0.5, 2.2, trainSize)
-        # r = np.sqrt(x**2 + y**2 + z**2)
-        nInputs[:,i,0] = np.random.uniform(low, high, trainSize) # this is x
-        nInputs[:,i,1] = np.random.uniform(low, high, trainSize) # y
-        nInputs[:,i,2] = np.random.uniform(low, high, trainSize) # z
-        nInputs[:,i,3] = np.sqrt(nInputs[:,i,0]**2 + nInputs[:,i,1]**2 + nInputs[:,i,2]**2) # r = sqrt(x^2 + ...)
+    # This gives r in range 0.8 --> 2.5, at least after removing some values
+    low  = np.sqrt(0.3**2/3.) # Set this to lower than 0.8 to get more samples where LJ oscialltes the most, fix later
+    high = np.sqrt(2.5**2/3.) # 1.4433756729741
+
+    def trainOrTest(size):# Cube object to be returned
+        nInputs = np.zeros((size,neighbors,4))
+        for i in range(neighbors): # Fill cube slice for each neighbor
+            nInputs[:,i,0] = np.random.uniform(low, high, size) * np.random.choice([-1,1], size) # this is x
+            nInputs[:,i,1] = np.random.uniform(low, high, size) * np.random.choice([-1,1], size) # y
+            nInputs[:,i,2] = np.random.uniform(low, high, size) * np.random.choice([-1,1], size) # z
+            nInputs[:,i,3] = np.sqrt(nInputs[:,i,0]**2 + nInputs[:,i,1]**2 + nInputs[:,i,2]**2) # r = sqrt(x^2 + ...)
+        plt.hist(nInputs[:,:,3],bins=70)
+        plt.show()
+        # Remove particles that are too close
+        cubeShape = nInputs[:,:,3].shape # save the shape for reshaping later
+        x = nInputs[:,:,0].ravel()
+        y = nInputs[:,:,1].ravel()
+        z = nInputs[:,:,2].ravel()
+        r = nInputs[:,:,3].ravel() # Make into vector
+        indicesToRemove = np.where( r > 0.8 ) # Find indices where particles are too close
+        for i in indicesToRemove:
+            r[i] = np.random.uniform(0.8, 2.5)
+            dist = r[i]/math.sqrt(3.0) # For single numbers, python inbuilt functions are way quicker than numpy
+            x[i] = temp * np.random.choice([-1,1]) # 50-50 if position is plus or minus "dist"
+            y[i] = temp * np.random.choice([-1,1])
+            z[i] = temp * np.random.choice([-1,1])
+            # TODO: In future "dist" should perhaps be drawn from normal distribution for x,y,z or something
+            #       so that x,y,z is not always equal to r / sqrt(3). May cause too many samples along
+            #       this particular line.
+        nInputs[:,:,0] = x.reshape(cubeShape)
+        nInputs[:,:,1] = y.reshape(cubeShape)
+        nInputs[:,:,2] = z.reshape(cubeShape)
+        nInputs[:,:,3] = r.reshape(cubeShape)
+
+        plt.hist(nInputs[:,:,3],bins=70)
+        plt.show()
+        return nInputs
+
+    def outputGenerator(nInput):
+        size    = nInput.shape[0]
+        nOutput = np.zeros((size, neighbors))
+        pot     = PES( nInput[:,:,3] )
+        print nInput[:,:,3],"\n"
+        print pot
+        print "#######"
+
+
+    # Generate train and test data
+    input_train  = trainOrTest(trainSize)
+    input_test   = trainOrTest(testSize)
+    output_train = outputGenerator(input_train)
+    output_test  = outputGenerator(input_test)
+    return input_train, input_test, output_train, output_test
     #print nInputs
-    plt.hist(nInputs[:,:,3],bins=70)
-    plt.show()
-    # Input: [x, y, z, r]
-    # Output: [Ep, Fx, Fy, Fz]
+    # plt.hist(nInputs[:,:,3],bins=70)
+    # plt.show()
 
 #--------------#
 ##### main #####
 #--------------#
-createDataCFDA(100000,3,neighbors=1)
+createDataCFDA(5,3,neighbors=5)
 sys.exit(0)
 
 
