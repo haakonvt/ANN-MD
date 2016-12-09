@@ -124,40 +124,56 @@ def createDataCFDA(trainSize,testSize,neighbors=5):
     FORCES = lambda s: 12.0/s**13 - 6.0/s**7 # Analytic derivative of LJ with minus sign: F = -d/dx Ep
 
     # This gives r in range 0.8 --> 2.5, at least after removing some values
-    low  = np.sqrt(0.3**2/3.) # Set this to lower than 0.8 to get more samples where LJ oscialltes the most, fix later
-    high = np.sqrt(2.5**2/3.) # 1.4433756729741
+    # low  = -2.5#np.sqrt(0**2/3.) # Set this to lower than 0.8 to get more samples where LJ oscialltes the most, fix later
+    # high = 2.5#np.sqrt(2.5**2/3.) # 1.4433756729741
 
     def trainOrTest(size):# Cube object to be returned
         nInputs = np.zeros((size,neighbors,4))
+        xyz     = np.zeros((size,3))
         for i in range(neighbors): # Fill cube slice for each neighbor
-            nInputs[:,i,0] = np.random.uniform(low, high, size) * np.random.choice([-1,1], size) # this is x
-            nInputs[:,i,1] = np.random.uniform(low, high, size) * np.random.choice([-1,1], size) # y
-            nInputs[:,i,2] = np.random.uniform(low, high, size) * np.random.choice([-1,1], size) # z
-            nInputs[:,i,3] = np.sqrt(nInputs[:,i,0]**2 + nInputs[:,i,1]**2 + nInputs[:,i,2]**2) # r = sqrt(x^2 + ...)
-        plt.hist(nInputs[:,:,3],bins=70)
-        plt.show()
+            nInputs[:,i,3] = np.random.uniform(0.8, 2.5, size) # this is R
+            r2             = nInputs[:,i,3]**2
+            xyz[:,0]       = np.random.uniform(0, r2, size)
+            xyz[:,1]       = np.random.uniform(0, r2-xyz[:,0], size)
+            xyz[:,2]       = r2 - xyz[:,0] - xyz[:,1]
+
+            for row in range(size):
+                np.random.shuffle(xyz[row,:]) # This shuffles in-place (so no copying)
+
+            nInputs[:,i,0] = np.sqrt(xyz[:,0]) * np.random.choice([-1,1],size) # 50-50 if position is plus or minus
+            nInputs[:,i,1] = np.sqrt(xyz[:,1]) * np.random.choice([-1,1],size)
+            nInputs[:,i,2] = np.sqrt(xyz[:,2]) * np.random.choice([-1,1],size)
+            
+        plt.subplot(2,1,1)
+        plt.hist(nInputs[:,:,3].ravel(),bins=70)
+        """ # Suddenly realized that this method was plain stupid... lulz #brain where u @?
         # Remove particles that are too close
         cubeShape = nInputs[:,:,3].shape # save the shape for reshaping later
-        x = nInputs[:,:,0].ravel()
-        y = nInputs[:,:,1].ravel()
-        z = nInputs[:,:,2].ravel()
-        r = nInputs[:,:,3].ravel() # Make into vector
-        indicesToRemove = np.where( r > 0.8 ) # Find indices where particles are too close
+        lenVec    = np.prod(cubeShape)
+        x = nInputs[:,:,0].ravel().reshape(lenVec) # Fixes shape (x,) to (x)
+        y = nInputs[:,:,1].ravel().reshape(lenVec)
+        z = nInputs[:,:,2].ravel().reshape(lenVec)
+        r = nInputs[:,:,3].ravel().reshape(lenVec) # Make into vector
+        indicesToRemove  =  list(np.where( r < 0.8 )[0]) # Find indices where particles are too close
+        indicesToRemove += (list(np.where( r > 2.5 )[0]))
+
+
         for i in indicesToRemove:
             r[i] = np.random.uniform(0.8, 2.5)
-            dist = r[i]/math.sqrt(3.0) # For single numbers, python inbuilt functions are way quicker than numpy
-            x[i] = temp * np.random.choice([-1,1]) # 50-50 if position is plus or minus "dist"
-            y[i] = temp * np.random.choice([-1,1])
-            z[i] = temp * np.random.choice([-1,1])
-            # TODO: In future "dist" should perhaps be drawn from normal distribution for x,y,z or something
-            #       so that x,y,z is not always equal to r / sqrt(3). May cause too many samples along
-            #       this particular line.
+            r2 = r[i]**2
+            x2 = np.random.uniform(0,r2)
+            y2 = np.random.uniform(0,r2-x2)
+            z2 = r2 - x2 - y2
+            x[i] = sqrt(x2) * np.random.choice([-1,1]) # For single numbers, python inbuilt functions are way quicker than numpy
+            y[i] = sqrt(y2) * np.random.choice([-1,1]) # 50-50 if position is plus or minus
+            z[i] = sqrt(z2) * np.random.choice([-1,1])
         nInputs[:,:,0] = x.reshape(cubeShape)
         nInputs[:,:,1] = y.reshape(cubeShape)
         nInputs[:,:,2] = z.reshape(cubeShape)
-        nInputs[:,:,3] = r.reshape(cubeShape)
+        nInputs[:,:,3] = r.reshape(cubeShape)"""
 
-        plt.hist(nInputs[:,:,3],bins=70)
+        plt.subplot(2,1,2)
+        plt.hist(nInputs[:,:,3].ravel(),bins=70)
         plt.show()
         return nInputs
 
@@ -165,13 +181,14 @@ def createDataCFDA(trainSize,testSize,neighbors=5):
         size    = nInput.shape[0]
         nOutput = np.zeros((size, neighbors))
         pot     = PES( nInput[:,:,3] )
-        print nInput[:,:,3],"\n"
-        print pot
-        print "#######"
+        # print nInput[:,:,3],"\n"
+        # print pot
+        # print "#######"
 
 
     # Generate train and test data
     input_train  = trainOrTest(trainSize)
+    sys.exit()
     input_test   = trainOrTest(testSize)
     output_train = outputGenerator(input_train)
     output_test  = outputGenerator(input_test)
@@ -183,7 +200,7 @@ def createDataCFDA(trainSize,testSize,neighbors=5):
 #--------------#
 ##### main #####
 #--------------#
-createDataCFDA(5,3,neighbors=5)
+createDataCFDA(100000,3,neighbors=5)
 sys.exit(0)
 
 
