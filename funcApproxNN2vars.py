@@ -152,6 +152,7 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, noPrint=Fals
 
         # loop through epocs
         xTrain, yTrain, xTest, yTest = functionNormData(trainSize,testSize,axMin,axMax)
+        
         for epoch in range(startEpoch, numberOfEpochs):
             # loop through batches and cover new data set for each epoch
             _, epochLoss = sess.run([optimizer, cost], feed_dict={x: xTrain, y: yTrain})

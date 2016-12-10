@@ -31,10 +31,10 @@ def createDataCFDA(trainSize,testSize,neighbors=5):
     """
     if neighbors <= 1:
         print "This code is meant for training a NN with more than one neighbor."
-        print "Thus, the number of neighbors will be changed to 20"
-        neighbors = 20
-        print "...done"
-
+        sys.exit()
+        # print "Thus, the number of neighbors will be changed to 20"
+        # neighbors = 20
+        # print "...done"
     PES    = lambda s:  1.0/s**12 - 1.0/s**6 # Lennard Jones pot. energy
     FORCES = lambda s: 12.0/s**13 - 6.0/s**7 # Analytic derivative of LJ with minus sign: F = -d/dx Ep
 
@@ -71,7 +71,8 @@ def createDataCFDA(trainSize,testSize,neighbors=5):
     input_test   = trainOrTest(testSize)
     output_train = outputGenerator(input_train)
     output_test  = outputGenerator(input_test)
-    return input_train, input_test, output_train, output_test
+    # TODO: Not sure the reshape does what I intend (unravel second and last index)
+    return input_train.reshape(trainSize,neighbors*4), output_train, input_test.reshape(testSize,neighbors*4), output_test
 
 def train_neural_network(x, epochs, nNodes, hiddenLayers,neighbors=5):
     # Begin session
@@ -135,15 +136,15 @@ tf.reset_default_graph() # Perhaps unneccessary
 
 # number of samples
 testSize  = 100  # Noise free data
-trainSize = 100
+trainSize = 5000
 
 # number of inputs and outputs
 numberOfNeighbors = 5
-input_vars  = 4  # Positions x,y,z and r of N neighbor atoms
+input_vars  = 4*numberOfNeighbors  # Positions x,y,z and r of N neighbor atoms
 output_vars = 4                    # Force sum x,y,z and potential energy
 
-x = tf.placeholder('float', [100, numberOfNeighbors, input_vars],  name="x")
-y = tf.placeholder('float', [None, output_vars], name="y")
+x = tf.placeholder('float', shape=(None, input_vars),  name="x")
+y = tf.placeholder('float', shape=(None, output_vars), name="y")
 
 #neuralNetwork = lambda data : nnx.modelRelu(data, nNodes=nNodes, hiddenLayers=hiddenLayers, inputs=2, wInitMethod='normal', bInitMethod='normal')
 #neuralNetwork = lambda data : nnx.modelTanh(data, nNodes=nNodes, hiddenLayers=hiddenLayers,inputs=2, wInitMethod='normal', bInitMethod='normal')
@@ -151,7 +152,7 @@ neuralNetwork = lambda data : nnx.modelSigmoid(data, nNodes=nNodes, hiddenLayers
                 inputs=input_vars, outputs=output_vars,wInitMethod='normal', bInitMethod='normal')
 
 print "---------------------------------------"
-epochs       = 100
+epochs       = 10000
 nNodes       = 50
 hiddenLayers = 2
 weights, biases, neurons, epochlossPerN = train_neural_network(x, epochs, nNodes, hiddenLayers, numberOfNeighbors)
