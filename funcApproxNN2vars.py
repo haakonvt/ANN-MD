@@ -11,6 +11,7 @@ import numpy as np
 import warnings
 import sys,os
 import glob
+import time
 
 # Stop matplotlib from giving FutureWarning
 warnings.filterwarnings("ignore", category=FutureWarning, module="matplotlib")
@@ -112,7 +113,7 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, noPrint=Fals
 
         # Initialize variables or restore from file
         saver = tf.train.Saver(weights + biases, max_to_keep=None)
-        sess.run(tf.initialize_all_variables())
+        sess.run(tf.global_variables_initializer())
         if loadFlag:
             loadFileName,startEpoch = findLoadFileName()
             numberOfEpochs         += startEpoch
@@ -126,7 +127,7 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, noPrint=Fals
         Initiate "some" variables needed for plotting
         #############################################
         """
-        plotLinearResolution = 31; axMin = -1; axMax = 1; dpi_choice = 60
+        plotLinearResolution = 50; axMin = -1; axMax = 1; dpi_choice = 120
         linPoints            = np.linspace(axMin,axMax,plotLinearResolution)
         zForPlot             = np.zeros((plotLinearResolution,plotLinearResolution))
         X, Y                 = np.meshgrid(linPoints, linPoints)
@@ -152,7 +153,7 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, noPrint=Fals
 
         # loop through epocs
         xTrain, yTrain, xTest, yTest = functionNormData(trainSize,testSize,axMin,axMax)
-        
+
         for epoch in range(startEpoch, numberOfEpochs):
             # loop through batches and cover new data set for each epoch
             _, epochLoss = sess.run([optimizer, cost], feed_dict={x: xTrain, y: yTrain})
@@ -206,7 +207,7 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, noPrint=Fals
                 Z        = scoreFunc1(X,Y,return2Darray=True)
                 errArray = np.abs(Z-zForPlot)
                 err      = np.sum(errArray)/float(Z.size) # Average error
-                if True:#err < prevErr: # Plot only if error is smaller!
+                if True and epoch > 0:#err < prevErr: # Plot only if error is smaller!
                     prevErr = err
                     chosenPercent     -= pIncr if chosenPercent > minPlotDiff else 0.0
                     plotEveryPctImprov = 1.0 - chosenPercent/100.0 # More plots later in the computation
@@ -340,7 +341,7 @@ def isinteger(x):
 ##### main #####
 #--------------#
 cmdArgs  = len(sys.argv)-1
-totalEpochs = 1000
+totalEpochs = 5000
 loadFileName = None; saveFileName = None
 global loadFlag; global plotFlag
 saveFlag, loadFlag, plotFlag, saveGraph = False, False, False, False
@@ -380,7 +381,7 @@ tf.reset_default_graph()
 
 # number of samples per batch
 testSize  = 100
-trainSize = 1500
+trainSize = 1000
 
 # number of inputs and outputs
 inputs  = 2
@@ -398,8 +399,9 @@ learning_rate_choice = 0.001 # Default for AdamOptimizer is 0.001
 testCases = 0
 print "Learning rate:", learning_rate_choice
 
-hl_list   = [1,2,3,4,5]
-node_list = [2,3,4,5]
+hl_list   = [1,2,5,10,20]
+node_list = [2,5,10,20,50]
+
 # If saving graph, you cannot test multiple values:
 if saveFlag or loadFlag or saveGraph or plotFlag:
     if len(hl_list) > 1 or len(node_list) > 1:
@@ -409,6 +411,9 @@ if saveFlag or loadFlag or saveGraph or plotFlag:
 noPrint = True if len(node_list)+len(node_list) > 2 else False
 epochlossPerNPrev = 1e100   # "Guaranteed" worse than anything
 nNodesBest = 0; hLBest = 0; epochBest = 0
+
+start_time = time.time()
+
 for hiddenLayers in hl_list:
     for nNodes in node_list:
         testCases += 1
@@ -427,3 +432,6 @@ if testCases > 1: # Print out testing different hidden layers and number of node
     print "Best combination found after %d epochs:" %epochBest
     print "Layers: %d, nodes/layer: %d, loss/N: %e" %(hLBest,nNodesBest,epochlossPerNPrev)
     print "---------------------------------------"
+
+# Time taken
+print "--- %s seconds ---" % round(time.time() - start_time,2)

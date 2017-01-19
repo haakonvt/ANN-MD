@@ -80,7 +80,7 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers,neighbors=5):
         # Setup of graph for later computation with tensorflow
         prediction, weights, biases, neurons = neuralNetwork(x)
         cost      = tf.nn.l2_loss(tf.sub(prediction, y))
-        optimizer = tf.train.AdamOptimizer().minimize(cost)
+        optimizer = tf.train.AdamOptimizer(0.005).minimize(cost)
 
         # Number of cycles of feed-forward and backpropagation
         numberOfEpochs    = epochs;
@@ -90,6 +90,11 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers,neighbors=5):
         # Initialize variables or restore from file
         saver = tf.train.Saver(weights + biases, max_to_keep=None)
         sess.run(tf.initialize_all_variables())
+
+        # Save first version of the net
+        saveFileName = "SavedRuns/run" + str(0) + ".dat"
+        saver.save(sess, saveFileName, write_meta_graph=False)
+        saveGraphFunc(sess, weights, biases, 0)
 
         bestTrainLoss = 1E100; bestTestLoss = 1E100; bestTestLossSinceLastPlot = 1E100; prevErr = 1E100
         triggerNewLine = False; saveNow = False
@@ -122,11 +127,47 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers,neighbors=5):
                     sys.stdout.write('\rEpoch %5d out of %5d trainloss/N: %10g, testloss/N: %10g\n' % \
                           (epoch+1, numberOfEpochs, epochLoss/float(trainSize), testCost/float(testSize)))
                     sys.stdout.flush()
+                    # If saving is enabled, save the graph variables ('w', 'b')
+                    if True:#saveFlag:
+                        saveFileName = "SavedRuns/run" + str(epoch+1) + ".dat"
+                        saver.save(sess, saveFileName, write_meta_graph=False)
+                        saveGraphFunc(sess, weights, biases, epoch+1)
                 triggerNewLine = False
 
     sys.stdout.write('\r' + ' '*80) # White out line for sake of pretty command line output lol
     return weights, biases, neurons, bestTestLoss/float(testSize)
 
+def saveGraphFunc(sess, weights, biases, epoch):
+    try:
+        os.mkdir("SavedGraphs")
+    except:
+        pass
+    saveGraphName = "SavedGraphs/tf_graph_WB_%d.txt" %(epoch)
+    with open(saveGraphName, 'w') as outFile:
+        outStr = "%1d %1d %s" % (hiddenLayers, nNodes, "sigmoid")
+        outFile.write(outStr + '\n')
+        size = len(sess.run(weights))
+        for i in range(size):
+            i_weights = sess.run(weights[i])
+            if i < size-1:
+                for j in range(len(i_weights)):
+                    for k in range(len(i_weights[0])):
+                        outFile.write("%g" % i_weights[j][k])
+                        outFile.write(" ")
+                    outFile.write("\n")
+            else:
+                for j in range(len(i_weights[0])):
+                    for k in range(len(i_weights)):
+                        outFile.write("%g" % i_weights[k][j])
+                        outFile.write(" ")
+                    outFile.write("\n")
+        outFile.write("\n")
+        for biasVariable in biases:
+            i_biases = sess.run(biasVariable)
+            for j in range(len(i_biases)):
+                outFile.write("%g" % i_biases[j])
+                outFile.write(" ")
+            outFile.write("\n")
 
 #--------------#
 ##### main #####
@@ -149,10 +190,10 @@ y = tf.placeholder('float', shape=(None, output_vars), name="y")
 #neuralNetwork = lambda data : nnx.modelRelu(data, nNodes=nNodes, hiddenLayers=hiddenLayers, inputs=2, wInitMethod='normal', bInitMethod='normal')
 #neuralNetwork = lambda data : nnx.modelTanh(data, nNodes=nNodes, hiddenLayers=hiddenLayers,inputs=2, wInitMethod='normal', bInitMethod='normal')
 neuralNetwork = lambda data : nnx.modelSigmoid(data, nNodes=nNodes, hiddenLayers=hiddenLayers,\
-                inputs=input_vars, outputs=output_vars,wInitMethod='normal', bInitMethod='normal')
+                inputs=input_vars, outputs=output_vars,wInitMethod='normal', bInitMethod='zeros')
 
 print "---------------------------------------"
-epochs       = 10000
+epochs       = 100000
 nNodes       = 50
 hiddenLayers = 2
 weights, biases, neurons, epochlossPerN = train_neural_network(x, epochs, nNodes, hiddenLayers, numberOfNeighbors)
