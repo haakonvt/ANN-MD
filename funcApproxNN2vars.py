@@ -399,8 +399,8 @@ learning_rate_choice = 0.001 # Default for AdamOptimizer is 0.001
 testCases = 0
 print "Learning rate:", learning_rate_choice
 
-hl_list   = [1,2,5,10,20]
-node_list = [2,5,10,20,50]
+hl_list   = [20]
+node_list = [100]
 
 # If saving graph, you cannot test multiple values:
 if saveFlag or loadFlag or saveGraph or plotFlag:
