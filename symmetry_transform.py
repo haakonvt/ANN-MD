@@ -1,11 +1,3 @@
-from matplotlib import rc
-rc('font',**{'family':'sans-serif','sans-serif':['Helvetica']})
-# rc('text', usetex=True)
-
-import matplotlib as mpl
-mpl.rcParams['lines.linewidth'] = 2.5
-
-import matplotlib.pyplot as plt
 from math import cos,pi,tanh,acos # Faster than numpy for scalars
 import numpy as np
 
@@ -53,28 +45,34 @@ def cutoff_cos(r,rc):
         return 0.5*(np.cos(pi*r/rc)+1) * (r <= rc)
 
 
-def G1(r, rc, cutoff):
-    N         = len(r)
-    r_cut     = cutoff(r)
+def G1(r, rc, cutoff=cutoff_cos):
+    r_cut     = cutoff(r,rc)
     summation = np.sum( r_cut )
     return summation
 
+def G1_single_neighbor(r, rc, cutoff=cutoff_cos):
+    return cutoff(r,rc)
 
-def G2(r, rc, rs, eta, cutoff):
-    N         = len(r)
-    r_cut     = cutoff(r)
+
+def G2(r, rc, rs, eta, cutoff=cutoff_cos):
+    r_cut     = cutoff(r,rc)
     summation = np.sum( np.exp(-eta*(r-rs)**2)*r_cut )
     return summation
 
+def G2_single_neighbor(r, rc, rs, eta, cutoff=cutoff_cos):
+    r_cut     = cutoff(r,rc)
+    return np.exp(-eta*(r-rs)**2)*r_cut
 
-def G3(r, rc, kappa, cutoff):
-    N         = len(r)
-    r_cut     = cutoff(r)
+def G3(r, rc, kappa, cutoff=cutoff_cos):
+    r_cut     = cutoff(r,rc)
     summation = np.sum( np.cos(kappa*r)*r_cut )
     return summation
 
+def G3_single_neighbor(r, rc, kappa, cutoff=cutoff_cos):
+    r_cut     = cutoff(r,rc)
+    return np.cos(kappa*r)*r_cut
 
-def G4(xyz, rc, eta, zeta, lambda_c, cutoff):
+def G4(xyz, rc, eta, zeta, lambda_c, cutoff=cutoff_cos):
     """ xyz:
     [[x1 y1 z1]
      [x2 y2 z2]
@@ -83,7 +81,7 @@ def G4(xyz, rc, eta, zeta, lambda_c, cutoff):
      """
     r         = np.linalg.norm(xyz,axis=1)
     N         = len(r)
-    r_cut     = cutoff(r)
+    r_cut     = cutoff(r,rc)
     summation = 0
     for j in range(N):
         for k in range(N):
@@ -95,8 +93,39 @@ def G4(xyz, rc, eta, zeta, lambda_c, cutoff):
     summation *= 2**(1-zeta)
     return
 
+def G4_single_neighbor(theta, r_all, zeta, lambda_c, eta):
+    """
+    Assumes cutoffs to be normalized to 1 and is removed from eqs
+    """
+    rij,rik,rjk = [r_all]*3 # All equal
+    N = len(theta)
+    exp_factor   = np.exp(-eta*(rij**2 + rik**2 + rjk**2))
+    angle_factor = 2**(1-zeta) * (1 + lambda_c * np.cos(theta))**zeta
+    return angle_factor * exp_factor
 
-def G5(xyz, rc, eta, zeta, lambda_c, cutoff):
+def G4_single_neighbor_rjk(theta, rc, zeta, lambda_c, eta, cutoff=cutoff_cos):
+    """
+    rij   = rik = 0.8 Rc
+    theta = 0,..,360
+    """
+    N   = len(theta)
+    rij = 0.8 * rc
+    rjk = np.sqrt(2*rij**2 - 4*rij*np.cos(theta))
+    exp_factor    = np.exp(-eta*(2*rij**2 + rjk**2))
+    angle_factor  = 2**(1-zeta) * (1 + lambda_c * np.cos(theta))**zeta
+    cutoff_factor = cutoff(rij)**2 * cutoff(rjk)
+    return angle_factor * exp_factor * cutoff_factor
+
+def G4_single_neighbor_radial(r, zeta, lambda_c, eta):
+    """
+    adfds
+    """
+    theta = pi/3. # Constant at 60 degrees aka pi/3
+    exp_factor   = np.exp(-eta*3*r**2)
+    angle_factor = 2**(1-zeta) * (1 + lambda_c * np.cos(theta))**zeta
+    return angle_factor * exp_factor
+
+def G5(xyz, rc, eta, zeta, lambda_c, cutoff=cutoff_cos):
     """ xyz:
     [[x1 y1 z1]
      [x2 y2 z2]
@@ -105,7 +134,7 @@ def G5(xyz, rc, eta, zeta, lambda_c, cutoff):
      """
     r         = np.linalg.norm(xyz,axis=1)
     N         = len(r)
-    r_cut     = cutoff(r)
+    r_cut     = cutoff(r,rc)
     summation = 0
     for j in range(N):
         for k in range(N):
@@ -116,11 +145,14 @@ def G5(xyz, rc, eta, zeta, lambda_c, cutoff):
     summation *= 2**(1-zeta)
     return
 
-
-def the_differ(x):
-    h = (x[1]-x[0])
-    x = np.diff(x) / h
-    return np.diff(x)/h
+def G5_single_neighbor_radial(r, zeta, lambda_c, eta):
+    """
+    Radial part of G5 when rij = rik
+    """
+    theta = pi/3. # Constant at 60 degrees aka pi/3
+    exp_factor   = np.exp(-eta*2*r**2) # rij = rik
+    angle_factor = 2**(1-zeta) * (1 + lambda_c * np.cos(theta))**zeta
+    return angle_factor * exp_factor
 
 if __name__ == '__main__':
     """
