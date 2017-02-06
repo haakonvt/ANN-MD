@@ -2,7 +2,7 @@
 Train a neural network to approximate a 2-variable function
 """
 from mpl_toolkits.mplot3d import Axes3D
-import neuralNetworkXavier as nnx
+import neural_network_setup as nns
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 import tensorflow as tf
@@ -390,9 +390,9 @@ outputs = 1
 x = tf.placeholder('float', [None, inputs],  name="x")
 y = tf.placeholder('float', [None, outputs], name="y")
 
-#neuralNetwork = lambda data : nnx.modelRelu(data, nNodes=nNodes, hiddenLayers=hiddenLayers, inputs=2, wInitMethod='normal', bInitMethod='normal')
-#neuralNetwork = lambda data : nnx.modelTanh(data, nNodes=nNodes, hiddenLayers=hiddenLayers,inputs=2, wInitMethod='normal', bInitMethod='normal')
-neuralNetwork = lambda data : nnx.modelSigmoid(data, nNodes=nNodes, hiddenLayers=hiddenLayers,inputs=2, wInitMethod='normal', bInitMethod='normal')
+#neuralNetwork = lambda data : nns.modelRelu(data, nNodes=nNodes, hiddenLayers=hiddenLayers, inputs=2, wInitMethod='normal', bInitMethod='normal')
+#neuralNetwork = lambda data : nns.modelTanh(data, nNodes=nNodes, hiddenLayers=hiddenLayers,inputs=2, wInitMethod='normal', bInitMethod='normal')
+neuralNetwork = lambda data : nns.modelSigmoid(data, nNodes=nNodes, hiddenLayers=hiddenLayers,inputs=2, wInitMethod='normal', bInitMethod='normal')
 
 print "---------------------------------------"
 learning_rate_choice = 0.001 # Default for AdamOptimizer is 0.001
