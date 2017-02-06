@@ -5,6 +5,4 @@ This code is (in its basic form) based on:
 2. https://github.com/johnands/TensorFlowTesting
 
 ### What is this?
-This code is a real-world data test of a simple neural network that tries to
-find the formula used by the website dxomark.com when deciding scores for different
-camera sensors.
+This code is part of my master thesis where I look into the use of neural networks as (hyper) potential energy surface (PES) in molecular dynamics (MD). Some simple examples, like approximating a "completely" arbitrary function of 1 or 2 variables is included and was used for training my own neural network i.e. my brain to work with TensorFlow.

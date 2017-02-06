@@ -256,7 +256,7 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, noPrint=Fals
                     surf = a.plot_surface(X, Y, Z-zForPlot, rstride=1, cstride=1, cmap=colormap_choice,
                                            linewidth=0, antialiased=False)
 
-                    plt.savefig("SomePlots/fig%d_epoch%d.png" %(plotCount,epoch), dpi=dpi_choice)
+                    plt.savefig("SomePlots/fig%d_epoch%d.pdf" %(plotCount,epoch))#, dpi=dpi_choice) # DPI only for raster graphic like png
                     plotCount += 1
                     plt.close()
                 # If saving is enabled, save the graph variables ('w', 'b')
