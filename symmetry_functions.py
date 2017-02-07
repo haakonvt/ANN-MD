@@ -81,7 +81,7 @@ def G5(xyz, rc, eta, zeta, lambda_c, cutoff=cutoff_cos):
             part_sum   = (1+lambda_c * cos(theta_ijk))**zeta * exp(-eta*(r[j]**2+r[k]**2))
             summation += part_sum*cutoff_ijk
     summation *= 2**(1-zeta)
-    return
+    return summation
 
 """
 #################

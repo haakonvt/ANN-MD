@@ -34,16 +34,26 @@ def symmetryTransform(G_funcs, xyz_i):
 
     xyz  = xyz_i
     r    = np.linalg.norm(xyz,axis=1)
-    size = xyz.shape[0]
+    size = xyz.shape[0] # TODO: What is this lol
     G_output = []
 
     if G_funcs[0] != 0:
-        # This is G1
-        pass
+        """
+        ### This is G1 ###
+        ### Variables: ###
+            - rc
+        """
+        G = 0
+        N = G_funcs[G][0]
+        for n in range(N):
+            values = G_funcs[G][1]
+            rc     = float(values[n,0])
+            G_output.append( G1(r,rc) )
     if G_funcs[1] != 0:
         """
         ### This is G2 ###
-        rc, rs, eta
+        ### Variables: ###
+            - rc, rs, eta
         """
         G = 1
         N = G_funcs[G][0]
@@ -53,14 +63,24 @@ def symmetryTransform(G_funcs, xyz_i):
             rs     = float(values[n,1])
             eta    = float(values[n,2])
             G_output.append( G2(r,rc, rs, eta) )
-            # print rc, rs, eta
     if G_funcs[2] != 0:
-        # This is G3
-        pass
+        """
+        ### This is G3 ###
+        ### Variables:
+            -rc, kappa
+        """
+        G = 2
+        N = G_funcs[G][0]
+        for n in range(N):
+            values = G_funcs[G][1]
+            rc     = float(values[n,0])
+            kappa  = float(values[n,1])
+            G_output.append( G3(r,rc,kappa) )
     if G_funcs[3] != 0:
         """
         ### This is G4 ###
-        rc, eta, zeta, lambda_c
+        ### Variables:
+            - rc, eta, zeta, lambda_c
         """
         G = 3
         N = G_funcs[G][0]
@@ -73,8 +93,20 @@ def symmetryTransform(G_funcs, xyz_i):
             G_output.append( G4(xyz,rc, eta, zeta, lambda_c) )
             # print rc, eta, zeta, lambda_c
     if G_funcs[4] != 0:
-        # This is G5
-        pass
+        """
+        ### This is G5 ###
+        ### Variables:
+            - rc, eta, zeta, lambda_c
+        """
+        G = 4
+        N = G_funcs[G][0]
+        for n in range(N):
+            values   = G_funcs[G][1]
+            rc       = float(values[n,0])
+            eta      = float(values[n,1])
+            zeta     = float(values[n,2])
+            lambda_c = float(values[n,3])
+            G_output.append( G5(xyz,rc, eta, zeta, lambda_c) )
     return np.array(G_output)
 
 def generate_G_funcs_input():
