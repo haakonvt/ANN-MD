@@ -8,8 +8,6 @@ import tensorflow as tf
 import numpy as np
 import sys
 
-np.random.seed(1) # For testing
-
 def potentialEnergyGenerator(xyz_N, PES):
     size = xyz_N.shape[2]
     Ep   = np.zeros(size)
@@ -89,7 +87,7 @@ def PES_Stillinger_Weber(xyz_i):
 
 def FORCES_Stillinger_Weber(xyz_i):
     """
-    To be implemented
+    To be implemented. May not be needed for anything.
     """
     pass
 
@@ -106,7 +104,7 @@ def PES_Lennard_Jones(xyz_i):
 
 def FORCES_Lennard_Jones(xyz_i):
     """
-    To be implemented:
+    To be implemented. May not be needed for anything.
     FORCES = lambda s: 12.0/s**13 - 6.0/s**7 # Analytic derivative of LJ with minus sign: F = -d/dx Ep
     """
     pass
@@ -116,6 +114,7 @@ if __name__ == '__main__':
 
     if True:
         # Stillinger Weber test
+        np.random.seed(1) # For testing
         r_low     = 0.8
         r_high    = 1.9
         size      = 100

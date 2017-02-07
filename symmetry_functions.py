@@ -1,4 +1,4 @@
-from math import cos,pi,tanh,acos,sqrt # Faster than numpy for scalars
+from math import exp,cos,pi,tanh,acos,sqrt # Faster than numpy for scalars
 import numpy as np
 
 def cutoff_tanh(r,rc):
@@ -57,11 +57,11 @@ def G4(xyz, rc, eta, zeta, lambda_c, cutoff=cutoff_cos):
         for k in range(N):
             r_jk       = np.linalg.norm(xyz[j] - xyz[k])
             theta_ijk  = acos( np.dot(xyz[j],xyz[k]) / (r[j]*r[k]) )
-            cutoff_ijk = r_cut[j]*r_cut[k]*cutoff(r_jk)
+            cutoff_ijk = r_cut[j] * r_cut[k] * cutoff(r_jk, rc)
             part_sum   = (1+lambda_c * cos(theta_ijk))**zeta * exp(-eta*(r[j]**2+r[k]**2+r_jk**2))
             summation += part_sum*cutoff_ijk
     summation *= 2**(1-zeta)
-    return
+    return summation
 
 def G5(xyz, rc, eta, zeta, lambda_c, cutoff=cutoff_cos):
     """ xyz:
