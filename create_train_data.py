@@ -3,15 +3,13 @@ Generate XYZ data with corresponding energies from some chosen PES:
 - Lennard Jones
 - Stillinger Weber etc.
 """
-from math import pi,sqrt,acos,exp,cos
+from math import pi,sqrt,exp,cos
 import tensorflow as tf
 import numpy as np
-import sys
 
 def potentialEnergyGenerator(xyz_N, PES):
     size = xyz_N.shape[2]
     Ep   = np.zeros(size)
-    # r    = np.linalg.norm(xyz_N, axis=1)
 
     for i in range(size):
         xyz_i = xyz_N[:,:,i]
@@ -22,9 +20,11 @@ def createXYZ(r_min, r_max, size, neighbors=20, histogramPlot=False):
     """
     # Input:  Size of train and test size + number of neighbors
     # Output: xyz-neighbors-matrix of size 'size'
+
+    Generates random numbers with x,y,z that can be [0,r_max] with r in [r_min, r_max]
     """
-    if neighbors <= 1:
-        print "This code is meant for training a NN with more than one neighbor."; sys.exit()
+    # if neighbors <= 1:
+    #     print "This code is meant for training a NN with more than one neighbor."; sys.exit()
     print "Creating XYZ-neighbor-data for:\n - Neighbors: %d \n - Samples  :%d" %(neighbors,size)
     print "-------------------------------"
 
@@ -41,6 +41,7 @@ def createXYZ(r_min, r_max, size, neighbors=20, histogramPlot=False):
         xyz_N[i,1,:] = np.sqrt(xyz[:,1]) * np.random.choice([-1,1],size)
         xyz_N[i,2,:] = np.sqrt(xyz[:,2]) * np.random.choice([-1,1],size)
     if histogramPlot:
+        import matplotlib.pyplot as plt
         plt.subplot(3,1,1);plt.hist(xyz_N[:,0,:].ravel(),bins=70);plt.subplot(3,1,2);plt.hist(xyz_N[:,1,:].ravel(),bins=70);plt.subplot(3,1,3);plt.hist(xyz_N[:,2,:].ravel(),bins=70);plt.show()
     return xyz_N
 
@@ -76,13 +77,13 @@ def PES_Stillinger_Weber(xyz_i):
     rc = (r < a) # Bool array. "False" cast to 0 and "True" to 1
     U2 = eps*A*(B*r**(-p)-r**(-q)) * np.exp(r-a)**-1 * rc
     U  = np.sum(U2) # Two body terms
-    U3 = lambda rij, rik, theta_ijk: eps*l*exp(g/(rij-a) + g/(rik-a))* (cos(theta_ijk) - cos_tc)**2 \
+    U3 = lambda rij, rik, cos_theta: eps*l*exp(g/(rij-a) + g/(rik-a))* (cos_theta - cos_tc)**2 \
                                      if (rij < a) and (rik < a) else 0.0 # Is this bad practice? lawls
     # Need a double sum to find three body terms
     for j in range(N): # i < j
         for k in range(j+1,N): # i < j < k
-            theta = acos(np.dot(xyz[j],xyz[k]) / (r[j]*r[k]))
-            U    += U3(r[j], r[k], theta)
+            cos_theta = np.dot(xyz[j],xyz[k]) / (r[j]*r[k])
+            U        += U3(r[j], r[k], cos_theta)
     return U
 
 def FORCES_Stillinger_Weber(xyz_i):
@@ -112,7 +113,7 @@ def FORCES_Lennard_Jones(xyz_i):
 
 if __name__ == '__main__':
 
-    if True:
+    if False:
         # Stillinger Weber test
         np.random.seed(1) # For testing
         r_low     = 0.8

@@ -2,11 +2,14 @@
 Train a neural network to approximate a potential energy surface
 with the use of symmetry functions that transform xyz-data.
 """
+
 import neural_network_setup as nns
+from create_train_data import *
+from symmetry_transform import *
 import tensorflow as tf
 import numpy as np
 import sys,os
-import glob
+
 
 def train_neural_network(x, epochs, nNodes, hiddenLayers,neighbors=5):
     # Begin session
@@ -105,6 +108,36 @@ def saveGraphFunc(sess, weights, biases, epoch):
 
 if __name__ == '__main__':
 
+    print "#########################\n#########################\n"
+
+    np.random.seed(1) # For testing
+
+    r_low     = 0.
+    r_high    = 1.8
+    size      = 10
+    neighbors = 20
+    PES       = PES_Stillinger_Weber
+    xyz_N     = createXYZ(r_low, r_high, size, neighbors,histogramPlot=False)
+    Ep        = potentialEnergyGenerator(xyz_N, PES)
+    G_funcs   = example_generate_G_funcs_input()
+
+    print "Number of symmetry functions used to describe each atom i:", 51
+    print "-------------------------------"
+    for i in range(size):
+        print "Stillinger Weber potential E:", Ep[i],"\n"
+        xyz_i = xyz_N[:,:,i]
+        G_i   = symmetryTransform(G_funcs, xyz_i)
+        # print np.mean(G_i), np.max(G_i), np.min(G_i), np.sum(G_i)
+        # print np.mean(xyz_N[i]), np.max(xyz_N[i]), np.min(xyz_N[i])
+        print G_i, "\n"
+        # if np.sum(G_i) < 1E-10:
+        #     print "Input 'break' to quit"
+        #     while True:
+        #         command = raw_input()
+        #         if command == "break":
+        #             break
+        #         exec(command)
+        #     break
     if False:
         tf.reset_default_graph() # Perhaps unneccessary
 

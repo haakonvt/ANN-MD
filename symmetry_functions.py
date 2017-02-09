@@ -1,4 +1,4 @@
-from math import exp,cos,pi,tanh,acos,sqrt # Faster than numpy for scalars
+from math import exp,cos,pi,tanh,sqrt # Faster than numpy for scalars
 import numpy as np
 
 def cutoff_tanh(r,rc):
@@ -56,9 +56,9 @@ def G4(xyz, rc, eta, zeta, lambda_c, cutoff=cutoff_cos):
     for j in range(N):
         for k in range(N):
             r_jk       = np.linalg.norm(xyz[j] - xyz[k])
-            theta_ijk  = acos( np.dot(xyz[j],xyz[k]) / (r[j]*r[k]) )
+            cos_theta  = np.dot(xyz[j],xyz[k]) / (r[j]*r[k])
             cutoff_ijk = r_cut[j] * r_cut[k] * cutoff(r_jk, rc)
-            part_sum   = (1+lambda_c * cos(theta_ijk))**zeta * exp(-eta*(r[j]**2+r[k]**2+r_jk**2))
+            part_sum   = (1+lambda_c * cos_theta)**zeta * exp(-eta*(r[j]**2+r[k]**2+r_jk**2))
             summation += part_sum*cutoff_ijk
     summation *= 2**(1-zeta)
     return summation
@@ -76,9 +76,9 @@ def G5(xyz, rc, eta, zeta, lambda_c, cutoff=cutoff_cos):
     summation = 0
     for j in range(N):
         for k in range(N):
-            theta_ijk  = acos( np.dot(xyz[j],xyz[k]) / (r[j]*r[k]) )
+            cos_theta  = np.dot(xyz[j],xyz[k]) / (r[j]*r[k])
             cutoff_ijk = r_cut[j]*r_cut[k]
-            part_sum   = (1+lambda_c * cos(theta_ijk))**zeta * exp(-eta*(r[j]**2+r[k]**2))
+            part_sum   = (1+lambda_c * cos_theta)**zeta * exp(-eta*(r[j]**2+r[k]**2))
             summation += part_sum*cutoff_ijk
     summation *= 2**(1-zeta)
     return summation
@@ -135,7 +135,7 @@ def G4_single_neighbor_2D(theta_grid, rc_grid, r_all, zeta, lambda_c, eta):
 
 def G4_single_neighbor(theta, r_all, rc, zeta, lambda_c, eta):
     """
-    NB: Number 444444444444444444444, not 5
+    NB: Number 4, not 5
     """
     cutoff        = cutoff_cos
     rij           = r_all # rij = rik
