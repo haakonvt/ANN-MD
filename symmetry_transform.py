@@ -1,5 +1,4 @@
 from symmetry_functions import G1,G2,G3,G4,G5
-from create_train_data import *
 import numpy as np
 
 def symmetryTransform(G_funcs, xyz_i):

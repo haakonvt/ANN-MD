@@ -8,6 +8,7 @@ from symmetry_transform import symmetryTransform
 from math import pi,sqrt,exp,cos
 import tensorflow as tf
 import numpy as np
+import time
 import sys
 
 def potentialEnergyGenerator(xyz_N, PES):
@@ -128,6 +129,53 @@ def createTrainData(trainSize, testSize, neighbors, PES, verbose=False):
     return xTrain, yTrain, xTest, yTest
 
 
+def createTrainDataDump(size, neighbors, PES, filename, verbose=False):
+    # neigh_low  = neighbors[0] # TODO: not implemented
+    # neigh_high = neighbors[1]
+    if PES == PES_Stillinger_Weber:
+        sigma       = 1.0
+        r_low       = 0.85 * sigma
+        r_high      = 1.8  * sigma - 1E-8 # SW has a divide by zero at exactly cutoff
+        xyz_N_train = createXYZ(r_low, r_high, size, neighbors, verbose=verbose)
+        if verbose:
+            sys.stdout.write('\r' + ' '*80) # White out line
+            sys.stdout.write('\rComputing potential energy.')
+            sys.stdout.flush()
+        Ep = potentialEnergyGenerator(xyz_N_train, PES)
+        # Ep = Ep.reshape([size,1])
+        if verbose:
+            sys.stdout.write('\r' + ' '*80) # White out line
+            sys.stdout.write('\rComputing potential energy. Done!\n')
+            sys.stdout.flush()
+
+        G_funcs, nmbr_G = generate_symmfunc_input_Si()
+        xTrain          = np.zeros((size, nmbr_G))
+
+        for i in range(size):
+            xyz_i       = xyz_N_train[:,:,i]
+            xTrain[i,:] = symmetryTransform(G_funcs, xyz_i)
+            if verbose:
+                sys.stdout.write('\r' + ' '*80) # White out line
+                percent = round(float(i+1)/size*100., 2)
+                sys.stdout.write('\rTransforming xyz with symmetry functions. %d %% complete' %(percent))
+                sys.stdout.flush()
+    else:
+        print "To be implemented! For now, use PES = PES_Stillinger_Weber. Exiting..."
+        sys.exit(0)
+    if verbose:
+        sys.stdout.write('\n\r' + ' '*80) # White out line
+        sys.stdout.write('\rSaving all training data to file.')
+        sys.stdout.flush()
+    dump_data = np.zeros((size, nmbr_G + 1))
+    dump_data[:,0]  = Ep
+    dump_data[:,1:] = xTrain
+    np.savetxt(filename, dump_data, delimiter=',')
+    if verbose:
+        sys.stdout.write('\r' + ' '*80) # White out line
+        sys.stdout.write('\rSaving all training data to file. Done!\n')
+        sys.stdout.flush()
+    return None
+
 def FORCES_Stillinger_Weber(xyz_i):
     """
     To be implemented. May not be needed for anything.
@@ -186,17 +234,15 @@ def generate_symmfunc_input_Si():
     return G_funcs, tot_Gs
 
 if __name__ == '__main__':
-
-    """
-    if False:
-        # Stillinger Weber test
-        np.random.seed(1) # For testing
-        r_low     = 0.8
-        r_high    = 1.9
-        size      = 100
-        neighbors = 30
-        PES       = PES_Stillinger_Weber
-        xyz_N     = createXYZ(r_low, r_high, size, neighbors)
-        Ep        = potentialEnergyGenerator(xyz_N, PES)
-        print Ep
-    """
+    filename = "stillinger-weber-symmetry-data2.txt"
+    print "When run directly (like now), this file dumps training data to file:"
+    print '"%s"' %filename
+    size = 10000
+    # neighbors = [4, 15]
+    neighbors = 15
+    PES       = PES_Stillinger_Weber
+    t0 = time.clock()
+    createTrainDataDump(size, neighbors, PES, filename, verbose=True)
+    t1 = time.clock() - t0
+    print "\nComputation took: %.2f seconds" %t1
+    # Read files with np.loadtxt()
