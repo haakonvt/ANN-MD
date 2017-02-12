@@ -1,6 +1,12 @@
 from math import exp,cos,pi,tanh,sqrt # Faster than numpy for scalars
 import numpy as np
 
+"""
+#################
+The cutoff functions
+#################
+"""
+
 def cutoff_tanh(r,rc):
     """
     Can take scalar and vector input of r and evaluate the cutoff function
@@ -26,6 +32,12 @@ def cutoff_cos(r,rc):
             return 0.
     else:
         return 0.5*(np.cos(pi*r/rc)+1) * (r <= rc)
+
+"""
+#################
+Single particle symmetry functions
+#################
+"""
 
 def G1(r, rc, cutoff=cutoff_cos):
     r_cut     = cutoff(r,rc)
@@ -82,6 +94,19 @@ def G5(xyz, rc, eta, zeta, lambda_c, cutoff=cutoff_cos):
             summation += part_sum*cutoff_ijk
     summation *= 2**(1-zeta)
     return summation
+
+"""
+#################
+N particle symmetry functions
+#################
+"""
+
+def G1_N(r, type, rc, cutoff=cutoff_cos):
+    """
+    r    = [r1        , r2      , ...,        rN]
+    type = ["Hydrogen", "Oxygen", ...,  "Carbon"]
+    """
+    # TODO: May move this to symmetry_transform.py in stead...
 
 """
 #################

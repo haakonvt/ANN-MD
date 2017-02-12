@@ -1,11 +1,14 @@
+# -*- encoding: UTF8 -*-
 """
 Generate XYZ data with corresponding energies from some chosen PES:
 - Lennard Jones
 - Stillinger Weber etc.
 """
+from symmetry_transform import symmetryTransform
 from math import pi,sqrt,exp,cos
 import tensorflow as tf
 import numpy as np
+import sys
 
 def potentialEnergyGenerator(xyz_N, PES):
     size = xyz_N.shape[2]
@@ -16,17 +19,16 @@ def potentialEnergyGenerator(xyz_N, PES):
         Ep[i] = PES(xyz_i)
     return Ep
 
-def createXYZ(r_min, r_max, size, neighbors=20, histogramPlot=False):
+def createXYZ(r_min, r_max, size, neighbors=20, histogramPlot=False, verbose=False):
     """
     # Input:  Size of train and test size + number of neighbors
     # Output: xyz-neighbors-matrix of size 'size'
 
     Generates random numbers with x,y,z that can be [0,r_max] with r in [r_min, r_max]
     """
-    # if neighbors <= 1:
-    #     print "This code is meant for training a NN with more than one neighbor."; sys.exit()
-    print "Creating XYZ-neighbor-data for:\n - Neighbors: %d \n - Samples  :%d" %(neighbors,size)
-    print "-------------------------------"
+    if verbose:
+        print "Creating XYZ-neighbor-data for:\n - Neighbors: %d \n - Samples  : %d" %(neighbors,size)
+        print "-------------------------------"
 
     xyz_N = np.zeros((neighbors,3,size))
     xyz   = np.zeros((size,3))
@@ -62,22 +64,22 @@ def PES_Stillinger_Weber(xyz_i):
     # A lot of definitions first
     A = 7.049556277
     B = 0.6022245584
-    p = 4
-    q = 0
+    p = 4.
+    q = 0.
     a = 1.8
-    l = 21  # lambda
+    l = 21.  # lambda
     g = 1.2 # gamma
     cos_tc = -1.0/3.0 # 109.47 deg
 
-    eps = 2.1678  # [eV]
+    eps = 1. #2.1678  # [eV]    # With reduced units = 1
     m   = 28.085  # [amu]
-    sig = 0.20951 # [nm]
+    sig = 1. #2.0951 # [Å]      # With reduced units = 1
     Ts  = 25156.73798 # eps/kB [K]
 
     rc = (r < a) # Bool array. "False" cast to 0 and "True" to 1
     U2 = eps*A*(B*r**(-p)-r**(-q)) * np.exp(r-a)**-1 * rc
     U  = np.sum(U2) # Two body terms
-    U3 = lambda rij, rik, cos_theta: eps*l*exp(g/(rij-a) + g/(rik-a))* (cos_theta - cos_tc)**2 \
+    U3 = lambda rij, rik, cos_theta: eps*l*exp(g/(rij-a) + g/(rik-a)) * (cos_theta - cos_tc)**2 \
                                      if (rij < a) and (rik < a) else 0.0 # Is this bad practice? lawls
     # Need a double sum to find three body terms
     for j in range(N): # i < j
@@ -85,6 +87,46 @@ def PES_Stillinger_Weber(xyz_i):
             cos_theta = np.dot(xyz[j],xyz[k]) / (r[j]*r[k])
             U        += U3(r[j], r[k], cos_theta)
     return U
+
+def createTrainData(trainSize, testSize, neighbors, PES, verbose=False):
+    train_ratio = trainSize/ float(testSize+trainSize)
+    test_ratio  = testSize / float(testSize+trainSize)
+    if PES == PES_Stillinger_Weber:
+        sigma       = 1.0
+        r_low       = 0.85 * sigma
+        r_high      = 1.8  * sigma - 1E-8 # SW has a divide by zero at exactly cutoff
+        xyz_N_train = createXYZ(r_low, r_high, trainSize, neighbors, verbose=verbose)
+        yTrain      = potentialEnergyGenerator(xyz_N_train, PES)
+        yTrain      = yTrain.reshape([trainSize,1])
+        xyz_N_test  = createXYZ(r_low, r_high, testSize, neighbors, verbose=verbose)
+        yTest       = potentialEnergyGenerator(xyz_N_test, PES)
+        yTest       = yTest.reshape([testSize,1])
+
+        G_funcs, nmbr_G = generate_symmfunc_input_Si()
+        xTrain          = np.zeros((trainSize, nmbr_G))
+        xTest           = np.zeros((testSize , nmbr_G))
+
+        for i in range(trainSize):
+            xyz_i       = xyz_N_train[:,:,i]
+            xTrain[i,:] = symmetryTransform(G_funcs, xyz_i)
+            if verbose:
+                sys.stdout.write('\r' + ' '*80) # White out line
+                percent = round(float(i+1)/trainSize*100.*train_ratio, 2)
+                sys.stdout.write('\rTransforming xyz with symmetry functions. %d %% complete' %(percent))
+                sys.stdout.flush()
+        for i in range(testSize):
+            xyz_i      = xyz_N_test[:,:,i]
+            xTest[i,:] = symmetryTransform(G_funcs, xyz_i)
+            if verbose:
+                sys.stdout.write('\r' + ' '*80) # White out line
+                percent = round(train_ratio*100 + float(i+1)/testSize*100.*test_ratio, 2)
+                sys.stdout.write('\rTransforming xyz with symmetry functions. %d %% complete' %(percent))
+                sys.stdout.flush()
+    else:
+        print "To be implemented! For now, use PES = PES_Stillinger_Weber. Exiting..."
+        sys.exit(0)
+    return xTrain, yTrain, xTest, yTest
+
 
 def FORCES_Stillinger_Weber(xyz_i):
     """
@@ -110,9 +152,42 @@ def FORCES_Lennard_Jones(xyz_i):
     """
     pass
 
+def generate_symmfunc_input_Si():
+    G_funcs = [0,0,0,0,0] # Start out with NO symm.funcs.
+    G_vars  = [1,3,2,4,4] # Number of variables symm.func. take as input
+    G_args_list = ["rc[i][j]",
+                   "rc[i][j], rs[i][j], eta[i][j]",
+                   "rc[i][j], kappa[i][j]",
+                   "rc[i][j], eta[i][j], zeta[i][j], lambda_c[i][j]",
+                   "rc[i][j], eta[i][j], zeta[i][j], lambda_c[i][j]"]
+    # Make use of symmetry function G2 and G4: (indicate how many)
+    which_symm_funcs = [2, 4]
+    wsf              = which_symm_funcs
+    how_many_funcs   = [9, 43]
+    hmf              = how_many_funcs
+
+    # This is where the pain begins -_-
+    # Note: [3] * 4 evaluates to [3,3,3,3]
+    rc       = [[1.8]*hmf[0], [1.8]*hmf[1]]
+    rs       = [[0.0]*hmf[0], [None]]
+    eta      = [[0.001, 0.015, 0.035, 0.06, 0.1, 0.2, 0.4, 0.7, 1.8], \
+                [0.001]*4 + [0.003]*4 + [0.008]*4 + [0.015]*8 + [0.025]*8 + [0.045]*8 + [0.08]*7]
+    zeta     = [[None], [1,1,2,2]*4 + [1,1,2,2,4,4,16,16]*3 + [1,1,2,2,4,4,16]]
+    lambda_c = [[None],[-1,1]*21 + [1]]
+
+    i = 0 # Will be first G-func
+    for G,n in zip(wsf, hmf):
+        G_funcs[G-1] = [n,  np.zeros((n, G_vars[G-1]))]
+        for j in range(n):
+            symm_args = eval("np.array([%s])" %(G_args_list[G-1]))
+            G_funcs[G-1][1][j] = symm_args
+        i += 1
+    tot_Gs = np.sum(np.array(hmf))
+    return G_funcs, tot_Gs
 
 if __name__ == '__main__':
 
+    """
     if False:
         # Stillinger Weber test
         np.random.seed(1) # For testing
@@ -124,3 +199,4 @@ if __name__ == '__main__':
         xyz_N     = createXYZ(r_low, r_high, size, neighbors)
         Ep        = potentialEnergyGenerator(xyz_N, PES)
         print Ep
+    """

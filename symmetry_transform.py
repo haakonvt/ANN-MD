@@ -170,10 +170,10 @@ if __name__ == '__main__':
     print "This will perform tests of the Stillinger Weber potential"
     print "-------------------------------"
 
-    r_low     = 0.3
+    r_low     = 0.85
     r_high    = 1.8
     size      = 1       # Note this
-    neighbors = 20
+    neighbors = 15
     PES       = PES_Stillinger_Weber
     xyz_N     = createXYZ(r_low, r_high, size, neighbors)
     Ep        = potentialEnergyGenerator(xyz_N, PES)
