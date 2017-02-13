@@ -3,6 +3,7 @@ Train a neural network to approximate a potential energy surface
 with the use of symmetry functions that transform xyz-data.
 """
 
+from file_management import deleteOldData
 import neural_network_setup as nns
 from create_train_data import *
 from symmetry_transform import *
@@ -17,7 +18,7 @@ def train_neural_network(x, y, epochs, nNodes, hiddenLayers, trainSize, testSize
         # Setup of graph for later computation with tensorflow
         prediction, weights, biases, neurons = neuralNetwork(x)
         cost      = tf.nn.l2_loss(tf.sub(prediction, y))
-        optimizer = tf.train.AdamOptimizer(learning_rate=0.001).minimize(cost)
+        optimizer = tf.train.AdamOptimizer(learning_rate=0.0002).minimize(cost)
 
         # Number of cycles of feed-forward and backpropagation
         numberOfEpochs    = epochs;
@@ -25,12 +26,12 @@ def train_neural_network(x, y, epochs, nNodes, hiddenLayers, trainSize, testSize
         startEpoch        = 0
 
         # Initialize variables or restore from file
-        saver = tf.train.Saver(weights + biases, max_to_keep=None)
+        saver = tf.train.Saver(weights + biases)
         sess.run(tf.global_variables_initializer())
 
         # Save first version of the net
-        saveFileName = "SavedRuns/run" + str(0) + ".dat"
-        saver.save(sess, saveFileName, write_meta_graph=False)
+        saveFileName = "SavedRuns/run"
+        saver.save(sess, saveFileName, global_step=0)
         saveGraphFunc(sess, weights, biases, 0, hiddenLayers, nNodes)
 
         bestTrainLoss = 1E100; bestTestLoss = 1E100; bestTestLossSinceLastPlot = 1E100; prevErr = 1E100
@@ -72,9 +73,9 @@ def train_neural_network(x, y, epochs, nNodes, hiddenLayers, trainSize, testSize
                     sys.stdout.flush()
                     # If saving is enabled, save the graph variables ('w', 'b')
                     if True:#saveFlag:
-                        saveFileName = "SavedRuns/run" + str(epoch+1) + ".dat"
-                        saver.save(sess, saveFileName, write_meta_graph=False)
-                        saveGraphFunc(sess, weights, biases, epoch+1, hiddenLayers, nNodes)
+                        saveFileName = "SavedRuns/run"
+                        saver.save(sess, saveFileName, global_step=(epoch+1))
+                        saveGraphFunc(sess, weights, biases, epoch, hiddenLayers, nNodes)
                 triggerNewLine = False
     sys.stdout.write('\r' + ' '*80) # White out line for sake of pretty command line output lol
     sys.stdout.flush()
@@ -82,10 +83,11 @@ def train_neural_network(x, y, epochs, nNodes, hiddenLayers, trainSize, testSize
     return weights, biases, neurons, bestTestLoss/float(testSize)
 
 def saveGraphFunc(sess, weights, biases, epoch, hiddenLayers, nNodes):
-    try:
-        os.mkdir("SavedGraphs")
-    except:
-        pass
+    """
+    Saves the neural network weights and biases to file,
+    in a format readably by 'humans'
+    """
+    epoch = epoch + 1
     saveGraphName = "SavedGraphs/tf_graph_WB_%d.txt" %(epoch)
     with open(saveGraphName, 'w') as outFile:
         outStr = "%1d %1d %s" % (hiddenLayers, nNodes, "sigmoid")
@@ -114,17 +116,17 @@ def saveGraphFunc(sess, weights, biases, epoch, hiddenLayers, nNodes):
             outFile.write("\n")
 
 def example_Stillinger_Weber():
-    tf.reset_default_graph() # Perhaps unneccessary
+    tf.reset_default_graph() # Perhaps unneccessary dunno, too lazy to test
 
     global filename
     global readTrainDataFromFile
     # filename = "stillinger-weber-symmetry-data.txt"
-    filename = "SW_train_2e5.txt"
+    filename = "SW_train_2e5.txt" # Yeah, 200000 x 53 training points....
     readTrainDataFromFile = True
 
     # number of samples
     testSize  = 2000  # Noise free data
-    trainSize = 1000
+    trainSize = 1000  # Not really trainSize, but rather BATCH SIZE
 
     # IDEA: Perhaps this should be varied under training?
     numberOfNeighbors = 15 # of Si that are part of computation
@@ -141,15 +143,20 @@ def example_Stillinger_Weber():
                     inputs=input_vars, outputs=output_vars, wInitMethod='normal', bInitMethod='normal')
 
     print "---------------------------------------"
-    epochs       = 10000
+    epochs       = 1000000 # Million
     nNodes       = 50
     hiddenLayers = 3
     weights, biases, neurons, epochlossPerN = train_neural_network(x, y, epochs, nNodes, hiddenLayers, trainSize, testSize, numberOfNeighbors)
 
 
 if __name__ == '__main__':
+    # Prepare for new run:
+    deleteOldData()
+
     # Run example of SW:
     example_Stillinger_Weber()
+
+
 
     """
     if False:
