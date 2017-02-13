@@ -10,6 +10,7 @@ import tensorflow as tf
 import numpy as np
 import time
 import sys
+import os
 
 def potentialEnergyGenerator(xyz_N, PES):
     size = xyz_N.shape[2]
@@ -176,6 +177,57 @@ def createTrainDataDump(size, neighbors, PES, filename, verbose=False):
         sys.stdout.flush()
     return None
 
+class loadFromFile:
+    """
+    Loads file, shuffle rows and keeps it in memory for later use.
+    """
+    def __init__(self, testSizeSkip, filename, shuffle_rows=False):
+        self.skipIndices = testSizeSkip
+        self.index       = self.skipIndices
+        self.filename    = filename
+        if os.path.isfile(filename): # If file exist, load it
+            try:
+                self.buffer = np.loadtxt(filename, delimiter=',')
+            except Exception as e:
+                print "Could not load buffer. Error message follows:\n %s" %s
+        else:
+            print 'Found no training data called:\n"%s"\“...exiting!' %filename
+            sys.exit(0)
+        if shuffle_rows:
+            np.random.shuffle(self.buffer) # Shuffles rows only (not columns) by default *yey*
+        self.totalSize = self.buffer.shape[0]
+        print "Tot. data points loaded (and shuffled) from file:", self.totalSize
+
+    def __call__(self, size, return_test=False, verbose=False):
+        """
+        Returns the next batch of size 'size' which is a set of rows from the loaded file
+        """
+        testSize = self.skipIndices
+        i        = self.index # Easier to read next couple of lines
+        if return_test and size != testSize:
+            print "You initiated this class with testSize = %d," %testSize
+            print "and now you request trainSize = %d." %size
+            print "I will continue with %d (blame the programmer)" %testSize
+        if return_test and (testSize < self.totalSize):
+            symm_vec_test = self.buffer[0:testSize, 1:] # Second column->last
+            Ep_test       = self.buffer[0:testSize, 0]  # First column
+            Ep_test       = Ep_test.reshape([testSize,1])
+            return symm_vec_test, Ep_test
+        if i + size > self.totalSize:
+            if verbose:
+                print "\nWarning: All training data 'used', starting over!\n"
+            self.index = testSize # Dont use test data for training!
+            i          = testSize
+        if size + testSize < self.totalSize:
+            symm_vec_train = self.buffer[i:i+size, 1:] # Second column->last
+            Ep_train       = self.buffer[i:i+size, 0]  # First column
+            Ep_train       = Ep_train.reshape([size,1])
+            self.index = i + size # Update so that next time class is called, we get the next items
+            return symm_vec_train, Ep_train
+        else:
+            print "Requested batch size %d, is larger than data set %d" %(size, self.totalSize)
+
+
 def FORCES_Stillinger_Weber(xyz_i):
     """
     To be implemented. May not be needed for anything.
@@ -234,15 +286,30 @@ def generate_symmfunc_input_Si():
     return G_funcs, tot_Gs
 
 if __name__ == '__main__':
-    filename = "stillinger-weber-symmetry-data2.txt"
-    print "When run directly (like now), this file dumps training data to file:"
-    print '"%s"' %filename
-    size = 10000
-    # neighbors = [4, 15]
-    neighbors = 15
-    PES       = PES_Stillinger_Weber
-    t0 = time.clock()
-    createTrainDataDump(size, neighbors, PES, filename, verbose=True)
-    t1 = time.clock() - t0
-    print "\nComputation took: %.2f seconds" %t1
-    # Read files with np.loadtxt()
+    dumpToFile = False
+    testClass  = False
+
+    if testClass:
+        testSize  = 100 # Remove these from training set
+        filename  = "stillinger-weber-symmetry-data.txt"
+        all_data  = loadFromFile(testSize, filename)
+        xTrain, yTrain = all_data(1)
+        print xTrain[:,0:5], "\n", yTrain
+        xTrain, yTrain = all_data(1)
+        print xTrain[:,0:5], "\n", yTrain # Make sure this is different from above print out
+
+    if dumpToFile:
+        filename = "stillinger-weber-symmetry-data.txt"
+        print "When run directly (like now), this file dumps training data to file:"
+        print '"%s"' %filename
+        size = 10000
+        # neighbors = [4, 15]
+        neighbors = 15
+        PES       = PES_Stillinger_Weber
+        t0 = time.clock()
+        createTrainDataDump(size, neighbors, PES, filename, verbose=True)
+        t1 = time.clock() - t0
+        print "\nComputation took: %.2f seconds" %t1
+
+    if not dumpToFile and not testClass: # aka no tests run
+        print "It looks like this script didnt do anything. Cool :B"

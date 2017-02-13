@@ -36,17 +36,22 @@ def train_neural_network(x, y, epochs, nNodes, hiddenLayers, trainSize, testSize
         bestTrainLoss = 1E100; bestTestLoss = 1E100; bestTestLossSinceLastPlot = 1E100; prevErr = 1E100
         triggerNewLine = False; saveNow = False; verbose=True
 
+        if readTrainDataFromFile:
+            all_data = loadFromFile(testSize, filename, shuffle_rows=False)
+            xTest, yTest = all_data(testSize, return_test=True)
+
         # Loop over epocs
         for epoch in range(0, numberOfEpochs):
             if epoch == 1:
                 verbose = False # Print out some info first iteration ONLY
+            # Read new data from file
+            if readTrainDataFromFile:
+                xTrain, yTrain = all_data(trainSize) # Get next batch of data
             # Generate new data
-            if epoch%50 == 0:
+            else: # elif epoch%10 == 0:
                 xTrain, yTrain, xTest, yTest = createTrainData(trainSize, testSize, neighbors, PES_Stillinger_Weber, verbose)
-
             # Loop through batches and cover new data set for each epoch
             _, epochLoss = sess.run([optimizer, cost], feed_dict={x: xTrain, y: yTrain})
-
             # Compute test set loss
             testCost = sess.run(cost, feed_dict={x: xTest, y: yTest})
 
@@ -71,8 +76,9 @@ def train_neural_network(x, y, epochs, nNodes, hiddenLayers, trainSize, testSize
                         saver.save(sess, saveFileName, write_meta_graph=False)
                         saveGraphFunc(sess, weights, biases, epoch+1, hiddenLayers, nNodes)
                 triggerNewLine = False
-
     sys.stdout.write('\r' + ' '*80) # White out line for sake of pretty command line output lol
+    sys.stdout.flush()
+    print "\n"
     return weights, biases, neurons, bestTestLoss/float(testSize)
 
 def saveGraphFunc(sess, weights, biases, epoch, hiddenLayers, nNodes):
@@ -110,9 +116,15 @@ def saveGraphFunc(sess, weights, biases, epoch, hiddenLayers, nNodes):
 def example_Stillinger_Weber():
     tf.reset_default_graph() # Perhaps unneccessary
 
+    global filename
+    global readTrainDataFromFile
+    # filename = "stillinger-weber-symmetry-data.txt"
+    filename = "SW_train_2e5.txt"
+    readTrainDataFromFile = True
+
     # number of samples
-    testSize  = 50  # Noise free data
-    trainSize = 250
+    testSize  = 2000  # Noise free data
+    trainSize = 1000
 
     # IDEA: Perhaps this should be varied under training?
     numberOfNeighbors = 15 # of Si that are part of computation
@@ -129,7 +141,7 @@ def example_Stillinger_Weber():
                     inputs=input_vars, outputs=output_vars, wInitMethod='normal', bInitMethod='normal')
 
     print "---------------------------------------"
-    epochs       = 100000
+    epochs       = 10000
     nNodes       = 50
     hiddenLayers = 3
     weights, biases, neurons, epochlossPerN = train_neural_network(x, y, epochs, nNodes, hiddenLayers, trainSize, testSize, numberOfNeighbors)
