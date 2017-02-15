@@ -33,7 +33,6 @@ def symmetryTransform(G_funcs, xyz_i):
 
     xyz  = xyz_i
     r    = np.linalg.norm(xyz,axis=1)
-    size = xyz.shape[0] # TODO: What is this lol
     G_output = []
 
     if G_funcs[0] != 0:

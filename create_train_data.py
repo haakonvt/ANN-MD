@@ -5,6 +5,7 @@ Generate XYZ data with corresponding energies from some chosen PES:
 - Stillinger Weber etc.
 """
 from symmetry_transform import symmetryTransform
+from timeit import default_timer as timer # Best timer indep. of system
 from math import pi,sqrt,exp,cos
 import tensorflow as tf
 import numpy as np
@@ -39,6 +40,45 @@ def createXYZ(r_min, r_max, size, neighbors=20, histogramPlot=False, verbose=Fal
         xyz[:,0] = np.random.uniform(0,     r2,          size)
         xyz[:,1] = np.random.uniform(0,     r2-xyz[:,0], size)
         xyz[:,2] = r2 - xyz[:,0] - xyz[:,1]
+        for row in range(size):
+            np.random.shuffle(xyz[row,:]) # This shuffles in-place (so no copying)
+        xyz_N[i,0,:] = np.sqrt(xyz[:,0]) * np.random.choice([-1,1],size) # 50-50 if position is plus or minus
+        xyz_N[i,1,:] = np.sqrt(xyz[:,1]) * np.random.choice([-1,1],size)
+        xyz_N[i,2,:] = np.sqrt(xyz[:,2]) * np.random.choice([-1,1],size)
+    if histogramPlot:
+        import matplotlib.pyplot as plt
+        plt.subplot(3,1,1);plt.hist(xyz_N[:,0,:].ravel(),bins=70);plt.subplot(3,1,2);plt.hist(xyz_N[:,1,:].ravel(),bins=70);plt.subplot(3,1,3);plt.hist(xyz_N[:,2,:].ravel(),bins=70);plt.show()
+    return xyz_N
+
+def createXYZ_Rjk(r_min, r_max, size, neighbors=20, histogramPlot=False, verbose=False):
+    """
+    # Input:  Size of train and test size + number of neighbors
+    # Output: xyz-neighbors-matrix of size 'size'
+
+    Generates random numbers with x,y,z that can be [0,r_max] with r in [r_min, r_max]
+
+    NOTE:
+    Rjk cannot be shorter than r_min. This causes a lot of problems when drawing
+    random numbers since (to the programmers knowledge) is no fast way of making sure
+    neighbor atom distance is within allowed interval. Think of this problem as dense packing
+    of 3D spheres.
+    """
+    if verbose:
+        print "Creating special XYZ-neighbor-data where rjk > r_min."
+        print " - Neighbors: %d \n - Samples  : %d" %(neighbors,size)
+        print "-------------------------------"
+
+    xyz_N = np.zeros((neighbors,3,size))
+    xyz   = np.zeros((size,3))
+    for i in range(neighbors): # Fill cube slice for each neighbor (quicker than "size")
+        r2       = np.random.uniform(r_min, r_max,       size)**2
+        xyz[:,0] = np.random.uniform(0,     r2,          size)
+        xyz[:,1] = np.random.uniform(0,     r2-xyz[:,0], size)
+        xyz[:,2] = r2 - xyz[:,0] - xyz[:,1]
+        # Not we must check the validity of all neighbor distances
+        for j in range():
+            for k in range(j+1,):
+                pass
         for row in range(size):
             np.random.shuffle(xyz[row,:]) # This shuffles in-place (so no copying)
         xyz_N[i,0,:] = np.sqrt(xyz[:,0]) * np.random.choice([-1,1],size) # 50-50 if position is plus or minus
@@ -268,10 +308,11 @@ def generate_symmfunc_input_Si():
 
     # This is where the pain begins -_-
     # Note: [3] * 4 evaluates to [3,3,3,3]
-    rc       = [[1.8]*hmf[0], [1.8]*hmf[1]]
-    rs       = [[0.0]*hmf[0], [None]]
-    eta      = [[0.001, 0.015, 0.035, 0.06, 0.1, 0.2, 0.4, 0.7, 1.8], \
-                [0.001]*4 + [0.003]*4 + [0.008]*4 + [0.015]*8 + [0.025]*8 + [0.045]*8 + [0.08]*7]
+    rc       = [[1.8]*hmf[0], [1.8*1.5]*hmf[1]]
+    rs       = [[0.85]*hmf[0], [None]]
+    #           [0.001, 0.015, 0.035, 0.06, 0.1, 0.2, 0.4, 0.7, 1.8] # Prev values
+    eta      = [[0.0  , 0.67 , 1.25 , 2.5 , 5.0, 10.0, 20.0, 40.0, 80.0], \
+                [0.001]*4 + [0.06]*4 + [0.12]*4 + [0.24]*8 + [0.4]*8 + [0.68]*8 + [1.15]*7]
     zeta     = [[None], [1,1,2,2]*4 + [1,1,2,2,4,4,16,16]*3 + [1,1,2,2,4,4,16]]
     lambda_c = [[None],[-1,1]*21 + [1]]
 
@@ -286,8 +327,22 @@ def generate_symmfunc_input_Si():
     return G_funcs, tot_Gs
 
 if __name__ == '__main__':
-    dumpToFile = False
+    dumpToFile = True
     testClass  = False
+
+    if dumpToFile:
+        # filename = "stillinger-weber-symmetry-data.txt"
+        filename  = "SW_train_2E6_updated.txt"
+        print "When run directly (like now), this file dumps training data to file:"
+        print '"%s"' %filename
+        size = 200000
+        # neighbors = [4, 15]
+        neighbors = 12
+        PES       = PES_Stillinger_Weber
+        t0 = timer()
+        createTrainDataDump(size, neighbors, PES, filename, verbose=True)
+        t1 = timer() - t0
+        print "\nComputation took: %.2f seconds" %t1
 
     if testClass:
         testSize  = 100 # Remove these from training set
@@ -297,19 +352,6 @@ if __name__ == '__main__':
         print xTrain[:,0:5], "\n", yTrain
         xTrain, yTrain = all_data(1)
         print xTrain[:,0:5], "\n", yTrain # Make sure this is different from above print out
-
-    if dumpToFile:
-        filename = "stillinger-weber-symmetry-data.txt"
-        print "When run directly (like now), this file dumps training data to file:"
-        print '"%s"' %filename
-        size = 10000
-        # neighbors = [4, 15]
-        neighbors = 15
-        PES       = PES_Stillinger_Weber
-        t0 = time.clock()
-        createTrainDataDump(size, neighbors, PES, filename, verbose=True)
-        t1 = time.clock() - t0
-        print "\nComputation took: %.2f seconds" %t1
 
     if not dumpToFile and not testClass: # aka no tests run
         print "It looks like this script didnt do anything. Cool :B"

@@ -156,6 +156,15 @@ def G4_single_neighbor_radial(r, zeta, lambda_c, eta):
     angle_factor = 2**(1-zeta) * (1 + lambda_c * np.cos(theta))**zeta
     return angle_factor * exp_factor
 
+def G4_single_neighbor_radial_cut(r, rc, zeta, lambda_c, eta, cutoff=cutoff_cos):
+    """
+    With cutoff
+    """
+    theta = pi/3. # Constant at 60 degrees aka pi/3
+    exp_factor   = np.exp(-eta*3*r**2)
+    angle_factor = 2**(1-zeta) * (1 + lambda_c * np.cos(theta))**zeta
+    return angle_factor * exp_factor * cutoff(r, rc)**3
+
 def G4_single_neighbor_2D(theta_grid, rc_grid, r_all, zeta, lambda_c, eta):
     cutoff        = cutoff_cos
     rij           = r_all # rij = rik

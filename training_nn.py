@@ -4,6 +4,7 @@ with the use of symmetry functions that transform xyz-data.
 """
 
 from file_management import deleteOldData
+from timeit import default_timer as timer # Best timer indep. of system
 import neural_network_setup as nns
 from create_train_data import *
 from symmetry_transform import *
@@ -38,7 +39,7 @@ def train_neural_network(x, y, epochs, nNodes, hiddenLayers, trainSize, testSize
         triggerNewLine = False; saveNow = False; verbose=True
 
         if readTrainDataFromFile:
-            all_data = loadFromFile(testSize, filename, shuffle_rows=False)
+            all_data = loadFromFile(testSize, filename, shuffle_rows=True)
             xTest, yTest = all_data(testSize, return_test=True)
 
         # Loop over epocs
@@ -121,15 +122,15 @@ def example_Stillinger_Weber():
     global filename
     global readTrainDataFromFile
     # filename = "stillinger-weber-symmetry-data.txt"
-    filename = "SW_train_2e5.txt" # Yeah, 200000 x 53 training points....
+    filename = "SW_train_2E6_updated.txt" # Yeah, 200000 x 53 training points....
     readTrainDataFromFile = True
 
     # number of samples
-    testSize  = 2000  # Noise free data
-    trainSize = 1000  # Not really trainSize, but rather BATCH SIZE
+    testSize  = 3000  # Noise free data
+    trainSize = 2000  # Not really trainSize, but rather BATCH SIZE
 
     # IDEA: Perhaps this should be varied under training?
-    numberOfNeighbors = 15 # of Si that are part of computation
+    numberOfNeighbors = 12 # of Si that are part of computation
 
     # Number of symmetry functions describing local env. of atom i
     _, input_vars = generate_symmfunc_input_Si()
@@ -143,9 +144,9 @@ def example_Stillinger_Weber():
                     inputs=input_vars, outputs=output_vars, wInitMethod='normal', bInitMethod='normal')
 
     print "---------------------------------------"
-    epochs       = 1000000 # Million
-    nNodes       = 50
-    hiddenLayers = 3
+    epochs       = 200000 # Million
+    nNodes       = 40
+    hiddenLayers = 4
     weights, biases, neurons, epochlossPerN = train_neural_network(x, y, epochs, nNodes, hiddenLayers, trainSize, testSize, numberOfNeighbors)
 
 
@@ -154,28 +155,6 @@ if __name__ == '__main__':
     deleteOldData()
 
     # Run example of SW:
+    t0 = timer()
     example_Stillinger_Weber()
-
-
-
-    """
-    if False:
-        np.random.seed(1) # For testing
-        sigma     = 1.0
-        r_low     = 0.85 * sigma
-        r_high    = 1.8  * sigma - 1E8 # SW has a divide by zero at exactly cutoff
-        size      = 1
-        neighbors = 15
-        PES       = PES_Stillinger_Weber
-        xyz_N     = createXYZ(r_low, r_high, size, neighbors, histogramPlot=False)
-        Ep        = potentialEnergyGenerator(xyz_N, PES)
-        G_funcs   = example_generate_G_funcs_input()
-
-        print "Number of symmetry functions used to describe each atom i:", 51
-        print "-------------------------------"
-        for i in range(size):
-            print "Stillinger Weber potential E:", Ep[i],"\n"
-            xyz_i = xyz_N[:,:,i]
-            G_i   = symmetryTransform(G_funcs, xyz_i)
-            print G_i, "\n"
-        """
+    print "Wall clock time:", timer() - t0
