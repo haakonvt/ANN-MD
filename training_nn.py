@@ -41,17 +41,20 @@ def train_neural_network(x, y, epochs, nNodes, hiddenLayers, trainSize, testSize
         if readTrainDataFromFile:
             all_data = loadFromFile(testSize, filename, shuffle_rows=True)
             xTest, yTest = all_data(testSize, return_test=True)
+        else: # Generate on the fly
+            xTest, yTest = createTrainData(testSize, neighbors, PES_Stillinger_Weber, verbose)
 
         # Loop over epocs
         for epoch in range(0, numberOfEpochs):
             if epoch == 1:
+                print 'NOTE: "-verbose" turned off now (after first epoch)'
                 verbose = False # Print out some info first iteration ONLY
             # Read new data from file
             if readTrainDataFromFile:
                 xTrain, yTrain = all_data(trainSize) # Get next batch of data
             # Generate new data
-            else: # elif epoch%10 == 0:
-                xTrain, yTrain, xTest, yTest = createTrainData(trainSize, testSize, neighbors, PES_Stillinger_Weber, verbose)
+            elif epoch%50 == 0:
+                xTrain, yTrain = createTrainData(trainSize, neighbors, PES_Stillinger_Weber, verbose)
             # Loop through batches and cover new data set for each epoch
             _, epochLoss = sess.run([optimizer, cost], feed_dict={x: xTrain, y: yTrain})
             # Compute test set loss
@@ -123,11 +126,11 @@ def example_Stillinger_Weber():
     global readTrainDataFromFile
     # filename = "stillinger-weber-symmetry-data.txt"
     filename = "SW_train_2E6_updated.txt" # Yeah, 200000 x 53 training points....
-    readTrainDataFromFile = True
+    readTrainDataFromFile = False
 
     # number of samples
-    testSize  = 3000  # Noise free data
-    trainSize = 2000  # Not really trainSize, but rather BATCH SIZE
+    testSize  = 200  # Noise free data
+    trainSize = 100  # Not really trainSize, but rather BATCH SIZE
 
     # IDEA: Perhaps this should be varied under training?
     numberOfNeighbors = 12 # of Si that are part of computation

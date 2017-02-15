@@ -13,6 +13,57 @@ import time
 import sys
 import os
 
+
+class loadFromFile:
+    """
+    Loads file, shuffle rows and keeps it in memory for later use.
+    """
+    def __init__(self, testSizeSkip, filename, shuffle_rows=False):
+        self.skipIndices = testSizeSkip
+        self.index       = self.skipIndices
+        self.filename    = filename
+        if os.path.isfile(filename): # If file exist, load it
+            try:
+                self.buffer = np.loadtxt(filename, delimiter=',')
+            except Exception as e:
+                print "Could not load buffer. Error message follows:\n %s" %s
+        else:
+            print 'Found no training data called:\n"%s"\“...exiting!' %filename
+            sys.exit(0)
+        if shuffle_rows:
+            np.random.shuffle(self.buffer) # Shuffles rows only (not columns) by default *yey*
+        self.totalSize = self.buffer.shape[0]
+        print "Tot. data points loaded (and shuffled) from file:", self.totalSize
+
+    def __call__(self, size, return_test=False, verbose=False):
+        """
+        Returns the next batch of size 'size' which is a set of rows from the loaded file
+        """
+        testSize = self.skipIndices
+        i        = self.index # Easier to read next couple of lines
+        if return_test and size != testSize:
+            print "You initiated this class with testSize = %d," %testSize
+            print "and now you request trainSize = %d." %size
+            print "I will continue with %d (blame the programmer)" %testSize
+        if return_test and (testSize < self.totalSize):
+            symm_vec_test = self.buffer[0:testSize, 1:] # Second column->last
+            Ep_test       = self.buffer[0:testSize, 0]  # First column
+            Ep_test       = Ep_test.reshape([testSize,1])
+            return symm_vec_test, Ep_test
+        if i + size > self.totalSize:
+            if verbose:
+                print "\nWarning: All training data 'used', starting over!\n"
+            self.index = testSize # Dont use test data for training!
+            i          = testSize
+        if size + testSize < self.totalSize:
+            symm_vec_train = self.buffer[i:i+size, 1:] # Second column->last
+            Ep_train       = self.buffer[i:i+size, 0]  # First column
+            Ep_train       = Ep_train.reshape([size,1])
+            self.index = i + size # Update so that next time class is called, we get the next items
+            return symm_vec_train, Ep_train
+        else:
+            print "Requested batch size %d, is larger than data set %d" %(size, self.totalSize)
+
 def potentialEnergyGenerator(xyz_N, PES):
     size = xyz_N.shape[2]
     Ep   = np.zeros(size)
@@ -62,6 +113,8 @@ def createXYZ_Rjk(r_min, r_max, size, neighbors=20, histogramPlot=False, verbose
     random numbers since (to the programmers knowledge) is no fast way of making sure
     neighbor atom distance is within allowed interval. Think of this problem as dense packing
     of 3D spheres.
+
+    NOTE: NOT FINISHED
     """
     if verbose:
         print "Creating special XYZ-neighbor-data where rjk > r_min."
@@ -130,44 +183,32 @@ def PES_Stillinger_Weber(xyz_i):
             U        += U3(r[j], r[k], cos_theta)
     return U
 
-def createTrainData(trainSize, testSize, neighbors, PES, verbose=False):
-    train_ratio = trainSize/ float(testSize+trainSize)
-    test_ratio  = testSize / float(testSize+trainSize)
+def createTrainData(size, neighbors, PES, verbose=False):
     if PES == PES_Stillinger_Weber:
         sigma       = 1.0
         r_low       = 0.85 * sigma
         r_high      = 1.8  * sigma - 1E-8 # SW has a divide by zero at exactly cutoff
-        xyz_N_train = createXYZ(r_low, r_high, trainSize, neighbors, verbose=verbose)
-        yTrain      = potentialEnergyGenerator(xyz_N_train, PES)
-        yTrain      = yTrain.reshape([trainSize,1])
-        xyz_N_test  = createXYZ(r_low, r_high, testSize, neighbors, verbose=verbose)
-        yTest       = potentialEnergyGenerator(xyz_N_test, PES)
-        yTest       = yTest.reshape([testSize,1])
+        xyz_N = createXYZ(r_low, r_high, size, neighbors, verbose=verbose)
+        Ep    = potentialEnergyGenerator(xyz_N, PES)
+        Ep    = Ep.reshape([size,1])
 
         G_funcs, nmbr_G = generate_symmfunc_input_Si()
-        xTrain          = np.zeros((trainSize, nmbr_G))
-        xTest           = np.zeros((testSize , nmbr_G))
+        nn_input        = np.zeros((size, nmbr_G))
 
-        for i in range(trainSize):
-            xyz_i       = xyz_N_train[:,:,i]
-            xTrain[i,:] = symmetryTransform(G_funcs, xyz_i)
+        for i in range(size):
+            xyz_i         = xyz_N[:,:,i]
+            nn_input[i,:] = symmetryTransform(G_funcs, xyz_i)
             if verbose:
                 sys.stdout.write('\r' + ' '*80) # White out line
-                percent = round(float(i+1)/trainSize*100.*train_ratio, 2)
-                sys.stdout.write('\rTransforming xyz with symmetry functions. %d %% complete' %(percent))
+                percent = round(float(i+1)/size*100., 2)
+                sys.stdout.write('\rTransforming xyz with symmetry functions. %.2f %% complete' %(percent))
                 sys.stdout.flush()
-        for i in range(testSize):
-            xyz_i      = xyz_N_test[:,:,i]
-            xTest[i,:] = symmetryTransform(G_funcs, xyz_i)
-            if verbose:
-                sys.stdout.write('\r' + ' '*80) # White out line
-                percent = round(train_ratio*100 + float(i+1)/testSize*100.*test_ratio, 2)
-                sys.stdout.write('\rTransforming xyz with symmetry functions. %d %% complete' %(percent))
-                sys.stdout.flush()
+        if verbose:
+            print " "
     else:
         print "To be implemented! For now, use PES = PES_Stillinger_Weber. Exiting..."
         sys.exit(0)
-    return xTrain, yTrain, xTest, yTest
+    return nn_input, Ep
 
 
 def createTrainDataDump(size, neighbors, PES, filename, verbose=False):
@@ -216,56 +257,6 @@ def createTrainDataDump(size, neighbors, PES, filename, verbose=False):
         sys.stdout.write('\rSaving all training data to file. Done!\n')
         sys.stdout.flush()
     return None
-
-class loadFromFile:
-    """
-    Loads file, shuffle rows and keeps it in memory for later use.
-    """
-    def __init__(self, testSizeSkip, filename, shuffle_rows=False):
-        self.skipIndices = testSizeSkip
-        self.index       = self.skipIndices
-        self.filename    = filename
-        if os.path.isfile(filename): # If file exist, load it
-            try:
-                self.buffer = np.loadtxt(filename, delimiter=',')
-            except Exception as e:
-                print "Could not load buffer. Error message follows:\n %s" %s
-        else:
-            print 'Found no training data called:\n"%s"\“...exiting!' %filename
-            sys.exit(0)
-        if shuffle_rows:
-            np.random.shuffle(self.buffer) # Shuffles rows only (not columns) by default *yey*
-        self.totalSize = self.buffer.shape[0]
-        print "Tot. data points loaded (and shuffled) from file:", self.totalSize
-
-    def __call__(self, size, return_test=False, verbose=False):
-        """
-        Returns the next batch of size 'size' which is a set of rows from the loaded file
-        """
-        testSize = self.skipIndices
-        i        = self.index # Easier to read next couple of lines
-        if return_test and size != testSize:
-            print "You initiated this class with testSize = %d," %testSize
-            print "and now you request trainSize = %d." %size
-            print "I will continue with %d (blame the programmer)" %testSize
-        if return_test and (testSize < self.totalSize):
-            symm_vec_test = self.buffer[0:testSize, 1:] # Second column->last
-            Ep_test       = self.buffer[0:testSize, 0]  # First column
-            Ep_test       = Ep_test.reshape([testSize,1])
-            return symm_vec_test, Ep_test
-        if i + size > self.totalSize:
-            if verbose:
-                print "\nWarning: All training data 'used', starting over!\n"
-            self.index = testSize # Dont use test data for training!
-            i          = testSize
-        if size + testSize < self.totalSize:
-            symm_vec_train = self.buffer[i:i+size, 1:] # Second column->last
-            Ep_train       = self.buffer[i:i+size, 0]  # First column
-            Ep_train       = Ep_train.reshape([size,1])
-            self.index = i + size # Update so that next time class is called, we get the next items
-            return symm_vec_train, Ep_train
-        else:
-            print "Requested batch size %d, is larger than data set %d" %(size, self.totalSize)
 
 
 def FORCES_Stillinger_Weber(xyz_i):
