@@ -8,7 +8,7 @@ def foldersCheck():
     for filename in ['SavedRuns','SomePlots','SavedGraphs']:
         if not os.path.exists(filename):
             os.makedirs(filename) # Create folders
-            foldersCheck += 1
+            foldersMade += 1
     return foldersMade
 
 def deleteOldData():

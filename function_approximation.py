@@ -102,7 +102,7 @@ def train_neural_network(x, epochs, nNodes, hiddenLayers, saveFlag, noPrint=Fals
     with tf.Session() as sess:
         # Setup of graph for later computation with tensorflow
         prediction, weights, biases, neurons = neuralNetwork(x)
-        cost = tf.nn.l2_loss(tf.sub(prediction, y))
+        cost = tf.nn.l2_loss(tf.subtract(prediction, y))
         optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate_choice).minimize(cost)
         #optimizer = tf.train.GradientDescentOptimizer(learning_rate=learning_rate_choice).minimize(cost) # Careful with this (need low learn rate)
 

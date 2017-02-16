@@ -18,7 +18,7 @@ def train_neural_network(x, y, epochs, nNodes, hiddenLayers, trainSize, testSize
     with tf.Session() as sess:
         # Setup of graph for later computation with tensorflow
         prediction, weights, biases, neurons = neuralNetwork(x)
-        cost      = tf.nn.l2_loss(tf.sub(prediction, y))
+        cost      = tf.nn.l2_loss(tf.subtract(prediction, y))
         optimizer = tf.train.AdamOptimizer(learning_rate=0.0002).minimize(cost)
 
         # Number of cycles of feed-forward and backpropagation
@@ -26,7 +26,7 @@ def train_neural_network(x, y, epochs, nNodes, hiddenLayers, trainSize, testSize
         bestEpochTestLoss = -1
         startEpoch        = 0
 
-        # Initialize variables or restore from file
+        # Initialize variables
         saver = tf.train.Saver(weights + biases)
         sess.run(tf.global_variables_initializer())
 
