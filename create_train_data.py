@@ -9,6 +9,7 @@ from timeit import default_timer as timer # Best timer indep. of system
 from math import pi,sqrt,exp,cos
 import tensorflow as tf
 import numpy as np
+import glob
 import time
 import sys
 import os
@@ -20,7 +21,7 @@ class loadFromFile:
     """
     def __init__(self, testSizeSkip, filename, shuffle_rows=False):
         self.skipIndices = testSizeSkip
-        self.index       = self.skipIndices
+        self.index       = 0
         self.filename    = filename
         if os.path.isfile(filename): # If file exist, load it
             try:
@@ -32,8 +33,10 @@ class loadFromFile:
             sys.exit(0)
         if shuffle_rows:
             np.random.shuffle(self.buffer) # Shuffles rows only (not columns) by default *yey*
-        self.totalSize = self.buffer.shape[0]
-        print "Tot. data points loaded (and shuffled) from file:", self.totalSize
+        print "Tot. data points loaded from file:", self.buffer.shape[0]
+        self.testData  = self.buffer[0:testSizeSkip,:] # Pick out test data from total
+        self.buffer    = self.buffer[testSizeSkip:,:]  # Use rest of data for training
+        self.totTrainData = self.buffer.shape[0]
 
     def __call__(self, size, return_test=False, verbose=False):
         """
@@ -41,33 +44,36 @@ class loadFromFile:
         """
         testSize = self.skipIndices
         i        = self.index # Easier to read next couple of lines
-        if return_test and size != testSize:
-            print "You initiated this class with testSize = %d," %testSize
-            print "and now you request trainSize = %d." %size
-            print "I will continue with %d (blame the programmer)" %testSize
-        if return_test and (testSize < self.totalSize):
-            symm_vec_test = self.buffer[0:testSize, 1:] # Second column->last
-            Ep_test       = self.buffer[0:testSize, 0]  # First column
+        if return_test:
+            if size != testSize:
+                print "You initiated this class with testSize = %d," %testSize
+                print "and now you request trainSize = %d." %size
+                print "I will continue with %d (blame the programmer)" %testSize
+            symm_vec_test = self.testData[:,1:] # Second column->last
+            Ep_test       = self.testData[:,0]  # First column
             Ep_test       = Ep_test.reshape([testSize,1])
             return symm_vec_test, Ep_test
-        if i + size > self.totalSize:
-            if verbose:
-                print "\nWarning: All training data 'used', starting over!\n"
-            self.index = testSize # Dont use test data for training!
-            i          = testSize
-        if size + testSize < self.totalSize:
-            symm_vec_train = self.buffer[i:i+size, 1:] # Second column->last
-            Ep_train       = self.buffer[i:i+size, 0]  # First column
-            Ep_train       = Ep_train.reshape([size,1])
-            self.index = i + size # Update so that next time class is called, we get the next items
-            return symm_vec_train, Ep_train
         else:
-            print "Requested batch size %d, is larger than data set %d" %(size, self.totalSize)
+            if i + size > self.totTrainData:
+                if verbose:
+                    print "\nWarning: All training data 'used', shuffling & starting over!\n"
+                np.random.shuffle(self.buffer) # Must be done, no choice!
+                self.index = 0 # Dont use test data for training!
+                i          = 0
+            if size < self.totTrainData:
+                symm_vec_train = self.buffer[i:i+size, 1:] # Second column->last
+                Ep_train       = self.buffer[i:i+size, 0]  # First column
+                Ep_train       = Ep_train.reshape([size,1])
+                self.index += size # Update so that next time class is called, we get the next items
+                return symm_vec_train, Ep_train
+            else:
+                print "Requested batch size %d, is larger than data set %d" %(size, self.totTrainData)
+    def return_all_data(self):
+        return self.buffer
 
 def potentialEnergyGenerator(xyz_N, PES):
     size = xyz_N.shape[2]
     Ep   = np.zeros(size)
-
     for i in range(size):
         xyz_i = xyz_N[:,:,i]
         Ep[i] = PES(xyz_i)
@@ -171,11 +177,12 @@ def PES_Stillinger_Weber(xyz_i):
     sig = 1. #2.0951 # [Å]      # With reduced units = 1
     Ts  = 25156.73798 # eps/kB [K]
 
-    rc = (r < a) # Bool array. "False" cast to 0 and "True" to 1
-    U2 = eps*A*(B*r**(-p)-r**(-q)) * np.exp(r-a)**-1 * rc
-    U  = np.sum(U2) # Two body terms
-    U3 = lambda rij, rik, cos_theta: eps*l*exp(g/(rij-a) + g/(rik-a)) * (cos_theta - cos_tc)**2 \
-                                     if (rij < a) and (rik < a) else 0.0 # Is this bad practice? lawls
+    # rc = (r < a) # Bool array. "False" cast to 0 and "True" to 1
+    U2 = eps*A*(B*r**(-p)-r**(-q)) * np.exp(r-a)**-1 #* rc
+    U3 = lambda rij, rik, cos_theta: eps*l*exp(g/(rij-a) + g/(rik-a)) * (cos_theta - cos_tc)**2 #\
+                                     #if (rij < a) and (rik < a) else 0.0 # Is this bad practice? lawls
+    # Sum up two body terms
+    U  = np.sum(U2)
     # Need a double sum to find three body terms
     for j in range(N): # i < j
         for k in range(j+1,N): # i < j < k
@@ -210,53 +217,99 @@ def createTrainData(size, neighbors, PES, verbose=False):
         sys.exit(0)
     return nn_input, Ep
 
+def checkAndMaybeLoadPrevTrainData(filename):
+    origFilename    = filename
+    listOfTrainData = glob.glob("SW_train_*.txt")
+    if filename in listOfTrainData: # Filename already exist
+        i = 0
+        while True:
+            i += 1
+            filename = origFilename[:-4] + "_v%d" %i + ".txt"
+            if filename not in listOfTrainData:
+                print "New filename:", filename
+                break # Continue changing name until we find one available
+    if not listOfTrainData: # No previous files
+        return False, None, filename
+    else:
+        nmbrFiles = len(listOfTrainData)
+        yn = raw_input("Found %d file(s). Load them into this file? (y/N) " %nmbrFiles)
+        if yn in ["y","Y","yes","Yes","YES"]: # Standard = enter = NO
+            loadedData = []
+            for file_i in listOfTrainData:
+                all_data = loadFromFile(0, file_i, shuffle_rows=False)
+                loadedData.append(all_data.return_all_data())
+            yn = raw_input("Delete files loaded? (Y/n) ")
+            if yn in ["y","Y","yes","Yes","YES",""]: # Standard = enter = YES
+                for file_i in listOfTrainData:
+                    os.remove(file_i)
+                filename = origFilename # Since we delete it here
+            # Smash all data into a single file
+            if len(loadedData) > 1:
+                all_data = np.concatenate(loadedData, axis=0)
+            else:
+                all_data = loadedData[0]
+            return True, all_data, filename
+        return False, None, filename
 
-def createTrainDataDump(size, neighbors, PES, filename, verbose=False):
-    # neigh_low  = neighbors[0] # TODO: not implemented
-    # neigh_high = neighbors[1]
-    if PES == PES_Stillinger_Weber:
-        sigma       = 1.0
-        r_low       = 0.85 * sigma
-        r_high      = 1.8  * sigma - 1E-8 # SW has a divide by zero at exactly cutoff
-        xyz_N_train = createXYZ(r_low, r_high, size, neighbors, verbose=verbose)
+def createTrainDataDump(size, neighbors, PES, filename, only_concatenate=False, verbose=False):
+    # Check if file exist and in case, ask if it should be loaded
+    filesLoadedBool, prev_data, filename = checkAndMaybeLoadPrevTrainData(filename)
+    if only_concatenate:
+        if verbose:
+            sys.stdout.write('\n\r' + ' '*80) # White out line
+            sys.stdout.write('\rSaving all training data to file.')
+            sys.stdout.flush()
+        np.random.shuffle(prev_data, axis=0) # Shuffle the rows of the data i.e. the symmetry vectors
+        np.savetxt(filename, prev_data, delimiter=',')
         if verbose:
             sys.stdout.write('\r' + ' '*80) # White out line
-            sys.stdout.write('\rComputing potential energy.')
+            sys.stdout.write('\rSaving all training data to file. Done!\n')
             sys.stdout.flush()
-        Ep = potentialEnergyGenerator(xyz_N_train, PES)
-        # Ep = Ep.reshape([size,1])
-        if verbose:
-            sys.stdout.write('\r' + ' '*80) # White out line
-            sys.stdout.write('\rComputing potential energy. Done!\n')
-            sys.stdout.flush()
-
-        G_funcs, nmbr_G = generate_symmfunc_input_Si()
-        xTrain          = np.zeros((size, nmbr_G))
-
-        for i in range(size):
-            xyz_i       = xyz_N_train[:,:,i]
-            xTrain[i,:] = symmetryTransform(G_funcs, xyz_i)
+    else:
+        if PES == PES_Stillinger_Weber: # i.e. if not 'only_concatenate'
+            sigma       = 1.0
+            r_low       = 0.85 * sigma
+            r_high      = 1.8  * sigma - 1E-8 # SW has a divide by zero at exactly cutoff
+            xyz_N_train = createXYZ(r_low, r_high, size, neighbors, verbose=verbose)
             if verbose:
                 sys.stdout.write('\r' + ' '*80) # White out line
-                percent = round(float(i+1)/size*100., 2)
-                sys.stdout.write('\rTransforming xyz with symmetry functions. %d %% complete' %(percent))
+                sys.stdout.write('\rComputing potential energy.')
                 sys.stdout.flush()
-    else:
-        print "To be implemented! For now, use PES = PES_Stillinger_Weber. Exiting..."
-        sys.exit(0)
-    if verbose:
-        sys.stdout.write('\n\r' + ' '*80) # White out line
-        sys.stdout.write('\rSaving all training data to file.')
-        sys.stdout.flush()
-    dump_data = np.zeros((size, nmbr_G + 1))
-    dump_data[:,0]  = Ep
-    dump_data[:,1:] = xTrain
-    np.savetxt(filename, dump_data, delimiter=',')
-    if verbose:
-        sys.stdout.write('\r' + ' '*80) # White out line
-        sys.stdout.write('\rSaving all training data to file. Done!\n')
-        sys.stdout.flush()
-    return None
+            Ep = potentialEnergyGenerator(xyz_N_train, PES)
+            if verbose:
+                sys.stdout.write('\r' + ' '*80) # White out line
+                sys.stdout.write('\rComputing potential energy. Done!\n')
+                sys.stdout.flush()
+
+            G_funcs, nmbr_G = generate_symmfunc_input_Si()
+            xTrain          = np.zeros((size, nmbr_G))
+
+            for i in range(size):
+                xyz_i       = xyz_N_train[:,:,i]
+                xTrain[i,:] = symmetryTransform(G_funcs, xyz_i)
+                if verbose and (i+1)%100 == 0:
+                    sys.stdout.write('\r' + ' '*80) # White out line
+                    percent = round(float(i+1)/size*100., 2)
+                    sys.stdout.write('\rTransforming xyz with symmetry functions. %g %% complete' %(percent))
+                    sys.stdout.flush()
+        else:
+            print "To be implemented! For now, use PES = PES_Stillinger_Weber. Exiting..."
+            sys.exit(0)
+        if verbose:
+            sys.stdout.write('\n\r' + ' '*80) # White out line
+            sys.stdout.write('\rSaving all training data to file.')
+            sys.stdout.flush()
+        dump_data = np.zeros((size, nmbr_G + 1))
+        dump_data[:,0]  = Ep
+        dump_data[:,1:] = xTrain
+        if filesLoadedBool:
+            dump_data = np.concatenate((dump_data, prev_data), axis=0) # Add loaded files
+        np.random.shuffle(dump_data, axis=0) # Shuffle the rows of the data i.e. the symmetry vectors
+        np.savetxt(filename, dump_data, delimiter=',')
+        if verbose:
+            sys.stdout.write('\r' + ' '*80) # White out line
+            sys.stdout.write('\rSaving all training data to file. Done!\n')
+            sys.stdout.flush()
 
 
 def FORCES_Stillinger_Weber(xyz_i):
@@ -291,15 +344,15 @@ def generate_symmfunc_input_Si():
                    "rc[i][j], kappa[i][j]",
                    "rc[i][j], eta[i][j], zeta[i][j], lambda_c[i][j]",
                    "rc[i][j], eta[i][j], zeta[i][j], lambda_c[i][j]"]
-    # Make use of symmetry function G2 and G4: (indicate how many)
-    which_symm_funcs = [2, 4]
+    # Make use of symmetry function G2 and G5: (indicate how many)
+    which_symm_funcs = [2, 5] # G5 instead of G4, because SW doesnt care about Rjk
     wsf              = which_symm_funcs
     how_many_funcs   = [9, 43]
     hmf              = how_many_funcs
 
     # This is where the pain begins -_-
     # Note: [3] * 4 evaluates to [3,3,3,3]
-    rc       = [[1.8]*hmf[0], [1.8*1.5]*hmf[1]]
+    rc       = [[1.8]*hmf[0], [1.8]*hmf[1]]
     rs       = [[0.85]*hmf[0], [None]]
     #           [0.001, 0.015, 0.035, 0.06, 0.1, 0.2, 0.4, 0.7, 1.8] # Prev values
     eta      = [[0.0  , 0.67 , 1.25 , 2.5 , 5.0, 10.0, 20.0, 40.0, 80.0], \
@@ -318,26 +371,30 @@ def generate_symmfunc_input_Si():
     return G_funcs, tot_Gs
 
 if __name__ == '__main__':
-    dumpToFile = True
-    testClass  = False
+    dumpToFile       = True
+    concatenateFiles = True
+    testClass        = False
 
     if dumpToFile:
+        size = 100000
+        neighbors = 10
         # filename = "stillinger-weber-symmetry-data.txt"
-        filename  = "SW_train_2E6_updated.txt"
+        filename  = "SW_train_%s.txt" %(str(size))
         print "When run directly (like now), this file dumps training data to file:"
         print '"%s"' %filename
-        size = 200000
-        # neighbors = [4, 15]
-        neighbors = 12
+        print "-------------------------------"
+        print "Neighbors", neighbors
+        print "-------------------------------"
         PES       = PES_Stillinger_Weber
         t0 = timer()
-        createTrainDataDump(size, neighbors, PES, filename, verbose=True)
+        createTrainDataDump(size, neighbors, PES, filename, \
+                            only_concatenate=concatenateFiles, verbose=True)
         t1 = timer() - t0
         print "\nComputation took: %.2f seconds" %t1
 
     if testClass:
         testSize  = 100 # Remove these from training set
-        filename  = "stillinger-weber-symmetry-data.txt"
+        filename  = "test-class-symmetry-data.txt"
         all_data  = loadFromFile(testSize, filename)
         xTrain, yTrain = all_data(1)
         print xTrain[:,0:5], "\n", yTrain

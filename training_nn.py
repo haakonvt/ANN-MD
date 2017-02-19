@@ -11,6 +11,7 @@ from symmetry_transform import *
 import tensorflow as tf
 import numpy as np
 import sys,os
+from math import sqrt
 
 
 def train_neural_network(x, y, epochs, nNodes, hiddenLayers, trainSize, testSize, neighbors=20):
@@ -26,9 +27,13 @@ def train_neural_network(x, y, epochs, nNodes, hiddenLayers, trainSize, testSize
         bestEpochTestLoss = -1
         startEpoch        = 0
 
-        # Initialize variables
+        # Initialize variables or restore from file
         saver = tf.train.Saver(weights + biases)
         sess.run(tf.global_variables_initializer())
+        # if loadFlag:
+        #     loadFileName, startEpoch = findLoadFileName()
+        #     numberOfEpochs          += startEpoch
+        #     saver.restore(sess, "SavedRuns/"+loadFileName)
 
         # Save first version of the net
         saveFileName = "SavedRuns/run"
@@ -39,7 +44,7 @@ def train_neural_network(x, y, epochs, nNodes, hiddenLayers, trainSize, testSize
         triggerNewLine = False; saveNow = False; verbose=True
 
         if readTrainDataFromFile:
-            all_data = loadFromFile(testSize, filename, shuffle_rows=True)
+            all_data = loadFromFile(testSize, filename, shuffle_rows=False)
             xTest, yTest = all_data(testSize, return_test=True)
         else: # Generate on the fly
             xTest, yTest = createTrainData(testSize, neighbors, PES_Stillinger_Weber, verbose)
@@ -47,7 +52,7 @@ def train_neural_network(x, y, epochs, nNodes, hiddenLayers, trainSize, testSize
         # Loop over epocs
         for epoch in range(0, numberOfEpochs):
             if epoch == 1:
-                print 'NOTE: "-verbose" turned off now (after first epoch)'
+                print '\nNOTE: "-verbose" turned off now (after first epoch)'
                 verbose = False # Print out some info first iteration ONLY
             # Read new data from file
             if readTrainDataFromFile:
@@ -57,23 +62,34 @@ def train_neural_network(x, y, epochs, nNodes, hiddenLayers, trainSize, testSize
                 xTrain, yTrain = createTrainData(trainSize, neighbors, PES_Stillinger_Weber, verbose)
             # Loop through batches and cover new data set for each epoch
             _, epochLoss = sess.run([optimizer, cost], feed_dict={x: xTrain, y: yTrain})
-            # Compute test set loss
-            testCost = sess.run(cost, feed_dict={x: xTest, y: yTest})
+
 
             if epoch%800 == 0:
                 triggerNewLine = True
             if epoch%80  == 0 and numberOfEpochs > epoch+80:
+                # Compute test set loss etc:
+                testCost   = sess.run(cost, feed_dict={x: xTest, y: yTest})
+                testC_act  = actualLoss(testCost, testSize)
+                trainC_act = actualLoss(epochLoss, trainSize)
+                testC_i    = testCost/float(testSize)
+                trainC_i   = epochLoss/float(trainSize)
                 sys.stdout.write('\r' + ' '*80) # White out line
-                sys.stdout.write('\rEpoch %5d out of %5d trainloss/N: %10g, testloss/N: %10g' % \
-                      (epoch+1, numberOfEpochs, epochLoss/float(trainSize), testCost/float(testSize)))
+                sys.stdout.write('\rEpoch %5d / %5d trainL/N: %10g, %10g, testL/N: %10g, %10g' % \
+                                (epoch+1, numberOfEpochs, trainC_act, trainC_i, testC_act, testC_i))
                 sys.stdout.flush()
-            if testCost < bestTestLoss:
-                bestTestLoss = testCost
+            if epochLoss < bestTestLoss:
+                bestTestLoss = epochLoss
                 bestEpochTestLoss = epoch
                 if triggerNewLine:
+                    # Compute test set loss etc:
+                    testCost   = sess.run(cost, feed_dict={x: xTest, y: yTest})
+                    testC_act  = actualLoss(testCost, testSize)
+                    trainC_act = actualLoss(epochLoss, trainSize)
+                    testC_i    = testCost/float(testSize)
+                    trainC_i   = epochLoss/float(trainSize)
                     sys.stdout.write('\r' + ' '*80) # White out line
-                    sys.stdout.write('\rEpoch %5d out of %5d trainloss/N: %10g, testloss/N: %10g\n' % \
-                          (epoch+1, numberOfEpochs, epochLoss/float(trainSize), testCost/float(testSize)))
+                    sys.stdout.write('\rEpoch %5d / %5d trainL/N: %10g, %10g, testL/N: %10g, %10g\n' % \
+                                    (epoch+1, numberOfEpochs, trainC_act, trainC_i, testC_act, testC_i))
                     sys.stdout.flush()
                     # If saving is enabled, save the graph variables ('w', 'b')
                     if True:#saveFlag:
@@ -85,6 +101,11 @@ def train_neural_network(x, y, epochs, nNodes, hiddenLayers, trainSize, testSize
     sys.stdout.flush()
     print "\n"
     return weights, biases, neurons, bestTestLoss/float(testSize)
+
+def actualLoss(tf_l2_loss, size):
+    # Tf uses: output = sum(t ** 2) / 2
+    output = sqrt(tf_l2_loss * 2.0 / float(size))
+    return output
 
 def saveGraphFunc(sess, weights, biases, epoch, hiddenLayers, nNodes):
     """
@@ -125,12 +146,15 @@ def example_Stillinger_Weber():
     global filename
     global readTrainDataFromFile
     # filename = "stillinger-weber-symmetry-data.txt"
-    filename = "SW_train_2E6_updated.txt" # Yeah, 200000 x 53 training points....
-    readTrainDataFromFile = False
+    filename = "SW_train_13e5.txt" # Yeah, 200000 x 53 training points....
+    if len(sys.argv) > 1:
+        filename = str(sys.argv[1])
+        print "Filename gotten from command line:",filename
+    readTrainDataFromFile = True
 
     # number of samples
-    testSize  = 200  # Noise free data
-    trainSize = 100  # Not really trainSize, but rather BATCH SIZE
+    testSize  = 2000  # Noise free data
+    trainSize = 1000  # Not really trainSize, but rather BATCH SIZE
 
     # IDEA: Perhaps this should be varied under training?
     numberOfNeighbors = 12 # of Si that are part of computation
@@ -147,7 +171,7 @@ def example_Stillinger_Weber():
                     inputs=input_vars, outputs=output_vars, wInitMethod='normal', bInitMethod='normal')
 
     print "---------------------------------------"
-    epochs       = 200000 # Million
+    epochs       = 500000
     nNodes       = 40
     hiddenLayers = 4
     weights, biases, neurons, epochlossPerN = train_neural_network(x, y, epochs, nNodes, hiddenLayers, trainSize, testSize, numberOfNeighbors)

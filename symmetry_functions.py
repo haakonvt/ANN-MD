@@ -93,11 +93,11 @@ def G5(xyz, rc, eta, zeta, lambda_c, cutoff=cutoff_cos):
     r_cut     = cutoff(r,rc)
     summation = 0
     for j in range(N):
-        for k in range(N):
+        for k in range(N): # This double counts angles... as in the litterature
             if j == k:
                 continue # Skip j=k
             cos_theta  = np.dot(xyz[j],xyz[k]) / (r[j]*r[k])
-            cutoff_ijk = r_cut[j]*r_cut[k]
+            cutoff_ijk = r_cut[j] * r_cut[k]
             part_sum   = (1+lambda_c * cos_theta)**zeta * exp(-eta*(r[j]**2+r[k]**2))
             summation += part_sum*cutoff_ijk
     summation *= 2**(1-zeta)

@@ -145,7 +145,7 @@ def example_generate_G_funcs_input2():
                    "rc[i][j], kappa[i][j]",
                    "rc[i][j], eta[i][j], zeta[i][j], lambda_c[i][j]",
                    "rc[i][j], eta[i][j], zeta[i][j], lambda_c[i][j]"]
-    # Make use of symmetry function G2 and G4: (indicate how many)
+    # Make use of symmetry function G1 and G2: (indicate how many)
     which_symm_funcs = [1, 2]; wsf = which_symm_funcs
     how_many_funcs   = [4, 4]; hmf = how_many_funcs
 
