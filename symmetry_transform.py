@@ -107,7 +107,7 @@ def symmetryTransform(G_funcs, xyz_i):
             G_output.append( G5(xyz,rc, eta, zeta, lambda_c) )
     return np.array(G_output)
 
-def example_generate_G_funcs_input():
+"""def example_generate_G_funcs_input():
     G_vars  = [1,3,2,4,4] # Number of variables symm.func. take as input
     G_funcs = [0,0,0,0,0] # Choose no symm.funcs.
     G_args_list = ["rc[i][j]",
@@ -135,34 +135,7 @@ def example_generate_G_funcs_input():
             symm_args = eval("np.array([%s])" %(G_args_list[G-1]))
             G_funcs[G-1][1][j] = symm_args
         i += 1
-    return G_funcs
-
-def example_generate_G_funcs_input2():
-    G_vars  = [1,3,2,4,4] # Number of variables symm.func. take as input
-    G_funcs = [0,0,0,0,0] # Choose no symm.funcs.
-    G_args_list = ["rc[i][j]",
-                   "rc[i][j], rs[i][j], eta[i][j]",
-                   "rc[i][j], kappa[i][j]",
-                   "rc[i][j], eta[i][j], zeta[i][j], lambda_c[i][j]",
-                   "rc[i][j], eta[i][j], zeta[i][j], lambda_c[i][j]"]
-    # Make use of symmetry function G1 and G2: (indicate how many)
-    which_symm_funcs = [1, 2]; wsf = which_symm_funcs
-    how_many_funcs   = [4, 4]; hmf = how_many_funcs
-
-    # This is where the pain begins -_-
-    # Note: [3] * 4 evaluates to [3,3,3,3]
-    rc       = [[0.45, 0.9, 1.35, 1.8], [1.8]*hmf[1]]
-    rs       = [[None], [0.0]*hmf[1]]
-    eta      = [[None], [0.01, 0.035, 0.06, 0.3]]
-
-    i = 0 # Will be first G-func
-    for G,n in zip(wsf, hmf):
-        G_funcs[G-1] = [n,  np.zeros((n, G_vars[G-1]))]
-        for j in range(n):
-            symm_args = eval("np.array([%s])" %(G_args_list[G-1]))
-            G_funcs[G-1][1][j] = symm_args
-        i += 1
-    return G_funcs
+    return G_funcs"""
 
 if __name__ == '__main__':
     print "This will perform tests of the Stillinger Weber potential"
