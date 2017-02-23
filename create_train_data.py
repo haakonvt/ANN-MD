@@ -208,7 +208,7 @@ def PES_Stillinger_Weber(xyz_i):
     U  = np.sum(U2)
     if isnan(U):
         U = U2_serial(r, rc)
-        print "NaN gotten, re-computing with serial code. U2 = ", U
+        print "\nNaN gotten, re-computing with serial code. U2 = ", U
     # Need a double sum to find three body terms
     for j in range(N): # i < j
         for k in range(j+1,N): # i < j < k
@@ -400,26 +400,66 @@ def testLammpsData(filename):
             xyzr_i   = xyzr_i[:-1].reshape(n_elem,4)
             xyz_i    = xyzr_i[:,:-1]
             Ep2.append(potentialEnergyGenerator(xyz_i,PES=PES_Stillinger_Weber))
-        import matplotlib.pyplot as plt
-        plt.subplot(2,1,1)
-        plt.hist(Ep,bins=200)
-        plt.subplot(2,1,2)
-        plt.hist(Ep2,bins=30)
-        plt.show()
+        # import matplotlib.pyplot as plt
+        # plt.subplot(2,1,1)
+        # plt.hist(Ep,bins=200)
+        # plt.subplot(2,1,2)
+        # plt.hist(Ep2,bins=30)
+        # plt.show()
         # plt.savefig("merkeligEp.pdf")
         # print len(Ep)
         # print np.mean(Ep), np.mean(Ep2), np.mean(Ep2)/np.mean(Ep)
 
+def lammpsDataToSymmToFile(open_filename, save_filename):
+    Ep = []
+    with open(open_filename, 'r') as lammps_file:
+        """
+        File looks like this
+        x1 y1 z1 r1^2 x2 y2 z2 r2^2 ... xN yN zN rN^2 Ep
+        """
+        size            = 3000
+        sigma           = 2.0951
+        G_funcs, nmbr_G = generate_symmfunc_input_Si(sigma)
+        xTrain          = np.zeros((size, nmbr_G))
+        for i,row in enumerate(lammps_file):
+            if i < 2000:
+                continue # Skip first 2000
+            i -= 2000
+            xyzr_i = np.array(row.split(), dtype=float)
+            n_elem = len(xyzr_i-1)/4 # Remove Ep and Compute
+            # Ep.append(xyzr_i[-1]) # This is broken somehow... compute my own below
+            xyzr_i = xyzr_i[:-1].reshape(n_elem,4)
+            xyz_i  = xyzr_i[:,:-1]
+            Ep.append(potentialEnergyGenerator(xyz_i, PES=PES_Stillinger_Weber))
+            xTrain[i,:] = symmetryTransform(G_funcs, xyz_i)
+            if (i+1)%10 == 0:
+                sys.stdout.write('\r' + ' '*80) # White out line
+                percent = round(float(i+1)/size*100., 2)
+                sys.stdout.write('\rTransforming xyz with symmetry functions. %g %% complete' %(percent))
+                sys.stdout.flush()
+    dump_data = np.zeros((size, nmbr_G + 1))
+    dump_data[:,0]  = Ep
+    dump_data[:,1:] = xTrain
+    np.random.shuffle(dump_data) # Shuffle the rows of the data i.e. the symmetry vectors
+    np.savetxt(save_filename, dump_data, delimiter=',')
+    print "\n"
+
 if __name__ == '__main__':
-    dumpToFile       = True
+    dumpToFile       = False
     concatenateFiles = False
     dumpMultiple     = False
     testLammps       = False
+    dumpLammpsFile   = True
     testClass        = False
 
     if testLammps:
         filename = "Important_data/lammps_neighbours.txt"
         testLammpsData(filename)
+
+    if dumpLammpsFile:
+        open_filename = "Important_data/lammps_neighbours.txt"
+        save_filename = "SW_train_lammps_3000.txt"
+        lammpsDataToSymmToFile(open_filename, save_filename)
 
     if dumpMultiple:
         size = 20000
