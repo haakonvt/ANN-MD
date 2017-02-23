@@ -6,7 +6,7 @@ Generate XYZ data with corresponding energies from some chosen PES:
 """
 from symmetry_transform import symmetryTransform
 from timeit import default_timer as timer # Best timer indep. of system
-from math import pi,sqrt,exp,cos,isnan
+from math import pi,sqrt,exp,cos,isnan,sin
 from warnings import filterwarnings
 import tensorflow as tf
 import numpy as np
@@ -81,9 +81,12 @@ def potentialEnergyGenerator(xyz_N, PES):
         for i in range(size):
             xyz_i = xyz_N[:,:,i]
             Ep[i] = PES(xyz_i)
+        """
+        # Plot distribution of potential energy (per particle)
         import matplotlib.pyplot as plt
         plt.hist(Ep,bins=50)
         plt.show()
+        """
         return Ep
 
 def potentialEnergyGeneratorSingleNeigList(xyz_i, PES):
@@ -315,10 +318,10 @@ def createTrainDataDump(size, neighbors, PES, filename, only_concatenate=False, 
             for i in range(size):
                 xyz_i       = xyz_N_train[:,:,i]
                 xTrain[i,:] = symmetryTransform(G_funcs, xyz_i)
-                if verbose and (i+1)%100 == 0:
+                if verbose and (i+1)%10 == 0:
                     sys.stdout.write('\r' + ' '*80) # White out line
                     percent = round(float(i+1)/size*100., 2)
-                    sys.stdout.write('\rTransforming xyz with symmetry functions. %g %% complete' %(percent))
+                    sys.stdout.write('\rTransforming xyz with symmetry functions. %.2f %% complete' %(percent))
                     sys.stdout.flush()
         else:
             print "To be implemented! For now, use PES = PES_Stillinger_Weber. Exiting..."
@@ -352,26 +355,26 @@ def PES_Lennard_Jones(xyz_i):
 
 def generate_symmfunc_input_Si(sigma):
     G_funcs = [0,0,0,0,0] # Start out with NO symm.funcs.
-    G_vars  = [1,3,2,4,4] # Number of variables symm.func. take as input
+    G_vars  = [1,3,2,4,5] # Number of variables symm.func. take as input
     G_args_list = ["rc[i][j]",
                    "rc[i][j], rs[i][j], eta[i][j]",
                    "rc[i][j], kappa[i][j]",
                    "rc[i][j], eta[i][j], zeta[i][j], lambda_c[i][j]",
-                   "rc[i][j], eta[i][j], zeta[i][j], lambda_c[i][j]"]
+                   "rc[i][j], eta[i][j], zeta[i][j], lambda_c[i][j], rs[i][j]"]
     # Make use of symmetry function G2 and G5: (indicate how many)
     which_symm_funcs = [2, 4] # G5 instead of G4, because SW doesnt care about Rjk
     wsf              = which_symm_funcs
-    how_many_funcs   = [10, 96]
+    how_many_funcs   = [10, 120]
     hmf              = how_many_funcs
 
     # This is where the pain begins -_-
     # Note: [3] * 4 evaluates to [3,3,3,3]
-    rc       = [[1.8  * sigma]*10, [1.8 * sigma]*96]
-    rs       = [[0.85 * sigma]*10, [None]]
+    rc       = [[1.8  * sigma]*10, [1.8  * sigma]*120]
+    rs       = [[0.85 * sigma]*10, [0.85 * sigma]*120]
     eta      = [[0.0, 0.3, 0.65, 1.25, 2.5, 5.0, 10.0, 20.0, 40.0, 90.0], \
-                [0.001]*12 + [0.025]*12 + [0.05]*12 + [0.08]*12 + [0.12]*12 + [0.18]*12 + [0.25]*12 + [0.4]*12]
-    zeta     = [[None], [1,1,2,2,4,4,8,8,16,16,32,32]*8]
-    lambda_c = [[None],[-1,1]*48]
+                [0.0]*12 + [0.3]*12 + [0.65]*12 + [1.25]*12 + [2.5]*12  + [5.]*12  + [10.]*12 + [20.]*12 + [40.]*12 + [90.]*12]
+    zeta     = [[None], [1,1,2,2,4,4,8,8,16,16,32,32]*10]
+    lambda_c = [[None],[-1,1]*60]
 
     i = 0 # Will be first G-func
     for G,n in zip(wsf, hmf):
@@ -435,7 +438,7 @@ def lammpsDataToSymmToFile(open_filename, save_filename):
             if (i+1)%10 == 0:
                 sys.stdout.write('\r' + ' '*80) # White out line
                 percent = round(float(i+1)/size*100., 2)
-                sys.stdout.write('\rTransforming xyz with symmetry functions. %g %% complete' %(percent))
+                sys.stdout.write('\rTransforming xyz with symmetry functions. %.2f %% complete' %(percent))
                 sys.stdout.flush()
     dump_data = np.zeros((size, nmbr_G + 1))
     dump_data[:,0]  = Ep
@@ -444,13 +447,61 @@ def lammpsDataToSymmToFile(open_filename, save_filename):
     np.savetxt(save_filename, dump_data, delimiter=',')
     print "\n"
 
+def rotateXYZ(xyz, xr, yr, zr, angle="radians"):
+    """
+    Rotates around all cartesian axes
+    xyz: [x,y,z]
+    """
+    if angle == "degrees":
+        xr = xr/360.*2*pi
+        yr = yr/360.*2*pi
+        zr = zr/360.*2*pi
+        angle = "radians"
+
+    if angle == "radians":
+        Rx = np.array([[cos(xr), -sin(xr), 0],
+                       [sin(xr),  cos(xr), 0],
+                       [0      ,        0, 1]])
+        Ry = np.array([[cos(yr) , 0, sin(yr)],
+                       [0       , 1,       0],
+                       [-sin(yr), 0, cos(yr)]])
+        Rz = np.array([[1,       0,        0],
+                       [0, cos(zr), -sin(zr)],
+                       [0, sin(zr), cos(zr)]])
+        R = np.dot(np.dot(Rx, Ry), Rz) # Dot for 2d-arrays does matrix multiplication
+        return np.dot(xyz, R)
+    else:
+        print "Angle must be given in 'radians' or 'degrees'. Exiting."
+        sys.exit(0)
+
+
 if __name__ == '__main__':
     dumpToFile       = False
     concatenateFiles = False
     dumpMultiple     = False
+    testAngSymm      = True
     testLammps       = False
-    dumpLammpsFile   = True
+    dumpLammpsFile   = False
     testClass        = False
+
+    if testAngSymm:
+        sigma     = 2.0951 # 1.0
+        r_low     = 0.85 * sigma
+        r_high    = 1.8  * sigma - 1E-8 # SW has a divide by zero at exactly cutoff
+        size      = 10
+        neighbors = 5
+        PES       = PES_Stillinger_Weber
+        xyz_N     = createXYZ(r_low, r_high, size, neighbors, verbose=False) # size = 10, neigh = 5
+        Ep0 = potentialEnergyGenerator(xyz_N, PES)
+
+        for i in range(size):
+            xyz_nl = xyz_N[:,:,i] # single nl, (neighbor list)
+            xr, yr, zr = np.random.uniform(0,2*np.pi,3) # Rotate all neighbor atoms with same angles (generated randomly)
+            for j in range(xyz_nl.shape[0]): # single x,y,z vector
+                xyz_nl[j]  = rotateXYZ(xyz_nl[j], xr, yr, zr)
+            xyz_N[:,:,i] = xyz_nl
+        Ep1 = potentialEnergyGenerator(xyz_N, PES)
+        assert np.sqrt(np.mean((Ep0-Ep1)**2)) < 1E-14
 
     if testLammps:
         filename = "Important_data/lammps_neighbours.txt"
@@ -487,10 +538,10 @@ if __name__ == '__main__':
             print "\nTotal computation took: %.2f seconds" %t1
 
     if dumpToFile:
-        size = 20000
-        neighbors = 10
+        size = 2000
+        neighbors = 12
         # filename = "stillinger-weber-symmetry-data.txt"
-        filename  = "SW_train_%s_n%s.txt" %(str(size), str(neighbors))
+        filename  = "SW_train_rs_%s_n%s.txt" %(str(size), str(neighbors))
         print "When run directly (like now), this file dumps training data to file:"
         print '"%s"' %filename
         print "-------------------------------"

@@ -21,6 +21,8 @@ def train_neural_network(x, y, epochs, nNodes, hiddenLayers, trainSize, testSize
     triggerNewLine = False; saveNow = False; verbose=True
 
     saveFlag = False
+    list_of_rmse_train = []
+    list_of_rmse_test  = []
 
     # Begin session
     with tf.Session() as sess:
@@ -66,14 +68,14 @@ def train_neural_network(x, y, epochs, nNodes, hiddenLayers, trainSize, testSize
 
             # Loop through batches of the training set and adjust parameters
             _, trainRMSE = sess.run([optimizer, RMSE], feed_dict={x: xTrain, y: yTrain})
-
+            list_of_rmse_train.append(trainRMSE)
 
             if epoch%800 == 0 or (epoch%10 == 0 and epoch < 200):
                 triggerNewLine = True
             if epoch%80  == 0 and numberOfEpochs > epoch+80:
                 # Compute test set loss etc:
                 testRMSE  = sess.run(RMSE, feed_dict={x: xTest , y: yTest})
-                # trainRMSE = sess.run(RMSE, feed_dict={x: xTrain, y: yTrain})
+                list_of_rmse_test.append(testRMSE)
                 sys.stdout.write('\r' + ' '*80) # White out line
                 sys.stdout.write('\r%5d/%5d. RMSE: train: %10g, test: %10g' % \
                                 (epoch+1, numberOfEpochs, trainRMSE, testRMSE))
@@ -98,6 +100,14 @@ def train_neural_network(x, y, epochs, nNodes, hiddenLayers, trainSize, testSize
     sys.stdout.write('\n' + ' '*105) # White out line for sake of pretty command line output lol
     sys.stdout.flush()
     print "\n"
+    np.savetxt("testRMSE.txt", list_of_rmse_test)
+    np.savetxt("trainRMSE.txt", list_of_rmse_train)
+    import matplotlib.pyplot as plt
+    plt.subplot(2,1,1)
+    plt.plot(list_of_rmse_test)
+    plt.subplot(2,1,2)
+    plt.plot(list_of_rmse_train)
+    plt.show()
     return weights, biases, neurons, bestTestLoss/float(testSize)
 
 def actualLoss(tf_l2_loss, size):
@@ -158,8 +168,8 @@ def example_Stillinger_Weber():
     readTrainDataFromFile = True
 
     # number of samples
-    testSize  = 2000  # Noise free data
-    trainSize = 1000  # Not really trainSize, but rather BATCH SIZE
+    testSize  = 200  # Noise free data
+    trainSize = 100  # Not really trainSize, but rather BATCH SIZE
 
     # IDEA: Perhaps this should be varied under training?
     # numberOfNeighbors = 12 # of Si that are part of computation

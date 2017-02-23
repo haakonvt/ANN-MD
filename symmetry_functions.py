@@ -104,6 +104,33 @@ def G5(xyz, rc, eta, zeta, lambda_c, cutoff=cutoff_cos):
     return summation
 
 """
+def G5(xyz, rc, eta, zeta, lambda_c, rs=0, cutoff=cutoff_cos):
+    ''' xyz:
+    [[x1 y1 z1]
+     [x2 y2 z2]
+     [x3 y3 z3]
+     [x4 y4 z4]]
+
+     NOTE: Using rs != 0 is a direct modification of the original function.
+     '''
+    r         = np.linalg.norm(xyz,axis=1)
+    N         = len(r)
+    r_cut     = cutoff(r,rc)
+    summation = 0
+    for j in range(N):
+        for k in range(N): # This double counts angles... as in the litterature
+            if j == k:
+                continue # Skip j=k
+            cos_theta  = np.dot(xyz[j],xyz[k]) / (r[j]*r[k])
+            cutoff_ijk = r_cut[j] * r_cut[k]
+            part_sum   = (1+lambda_c * cos_theta)**zeta
+            part_sum  *= exp(-eta*((r[j]-rs)**2+(r[k]-rs)**2))
+            summation += part_sum*cutoff_ijk
+    summation *= 2**(1-zeta)
+    return summation
+"""
+
+"""
 #################
 N particle symmetry functions
 #################
@@ -164,6 +191,15 @@ def G4_single_neighbor_radial_cut(r, rc, zeta, lambda_c, eta, cutoff=cutoff_cos)
     exp_factor   = np.exp(-eta*3*r**2)
     angle_factor = 2**(1-zeta) * (1 + lambda_c * np.cos(theta))**zeta
     return angle_factor * exp_factor * cutoff(r, rc)**3
+
+def G5_single_neighbor_radial_cut(r, rc, zeta, lambda_c, eta, rs, cutoff=cutoff_cos):
+    """
+    With cutoff
+    """
+    theta = pi/3. # Constant at 60 degrees aka pi/3
+    exp_factor   = np.exp(-eta * 2*(r-rs)**2)
+    angle_factor = 2**(1-zeta) * (1 + lambda_c * cos(theta))**zeta
+    return angle_factor * exp_factor * cutoff(r, rc)**2
 
 def G4_single_neighbor_2D(theta_grid, rc_grid, r_all, zeta, lambda_c, eta):
     cutoff        = cutoff_cos
