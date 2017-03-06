@@ -14,13 +14,13 @@ import sys,os
 from math import sqrt
 
 
-def train_neural_network(x, y, epochs, nNodes, hiddenLayers, trainSize, testSize, learning_rate=0.0002):
+def train_neural_network(x, y, epochs, nNodes, hiddenLayers, batchSize, testSize, learning_rate=0.0002):
     # Number of cycles of feed-forward and backpropagation
     numberOfEpochs = epochs; bestEpochTestLoss = -1; startEpoch = 0
     bestTrainLoss = 1E100; bestTestLoss = 1E100; bestTestLossSinceLastPlot = 1E100; prevErr = 1E100
     triggerNewLine = False; saveNow = False; verbose=True
 
-    saveFlag = False
+    saveFlag = True
     list_of_rmse_train = []
     list_of_rmse_test  = []
 
@@ -29,15 +29,14 @@ def train_neural_network(x, y, epochs, nNodes, hiddenLayers, trainSize, testSize
         # Setup of graph for later computation with tensorflow
         prediction, weights, biases, neurons = neuralNetwork(x)
         cost = tf.nn.l2_loss(prediction-y) # Train with RMSE error
+        # cost = tf.reduce_mean(np.abs(prediction-y)) # Train with L1 norm
         RMSE = tf.sqrt(tf.reduce_mean(tf.square(prediction-y)))    # tf.reduce_mean same as np.mean
         optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost)
 
         # Initialize variables or restore from file
-        # saver = tf.train.Saver(weights + biases)
+        saver = tf.train.Saver(weights + biases)
         sess.run(tf.global_variables_initializer())
         # if loadFlag:
-        #     loadFileName, startEpoch = findLoadFileName()
-        #     numberOfEpochs          += startEpoch
         #     saver.restore(sess, "SavedRuns/"+loadFileName)
 
         # Save first version of the net
@@ -47,66 +46,58 @@ def train_neural_network(x, y, epochs, nNodes, hiddenLayers, trainSize, testSize
             saveGraphFunc(sess, weights, biases, 0, hiddenLayers, nNodes)
 
         if readTrainDataFromFile:
-            all_data = loadFromFile(testSize, filename, shuffle_rows=False)
+            all_data = loadFromFile(testSize, filename, shuffle_rows=True)
             xTest, yTest = all_data(testSize, return_test=True)
         else: # Generate on the fly
             xTest, yTest = createTrainData(testSize, neighbors, PES_Stillinger_Weber, verbose)
-
         # Loop over epocs
         for epoch in range(0, numberOfEpochs):
             if epoch == 1:
-                # print '\nNOTE: "-verbose" turned off now (after first epoch)'
-                verbose = False # Print out some info first iteration ONLY
-            # Read new data from file
-            if readTrainDataFromFile:
-                xTrain, yTrain = all_data(trainSize) # Get next batch of data
-            # Generate new data
-            elif epoch%50 == 0:
-                if verbose:
-                    print "\nGenerating training data on the fly! Just FYI\n!"
-                xTrain, yTrain = createTrainData(trainSize, neighbors, PES_Stillinger_Weber, verbose)
+                verbose     = False # Print out some info first iteration ONLY
+            epochIsDone = False
+            # Loop over all the train data set in batches
+            while not epochIsDone:
+                # Read new data from loaded training data file
+                xTrain, yTrain, epochIsDone = all_data(batchSize) # Get next batch of data
 
-            # Loop through batches of the training set and adjust parameters
-            _, trainRMSE = sess.run([optimizer, RMSE], feed_dict={x: xTrain, y: yTrain})
-            list_of_rmse_train.append(trainRMSE)
+                # Loop through batches of the training set and adjust parameters
+                # 'optimizer' still uses quick cost-function
+                _, trainRMSE = sess.run([optimizer, RMSE], feed_dict={x: xTrain, y: yTrain})
 
-            if epoch%800 == 0 or (epoch%10 == 0 and epoch < 200):
-                triggerNewLine = True
-            if epoch%80  == 0 and numberOfEpochs > epoch+80:
-                # Compute test set loss etc:
-                testRMSE  = sess.run(RMSE, feed_dict={x: xTest , y: yTest})
-                list_of_rmse_test.append(testRMSE)
-                sys.stdout.write('\r' + ' '*80) # White out line
-                sys.stdout.write('\r%5d/%5d. RMSE: train: %10g, test: %10g' % \
-                                (epoch+1, numberOfEpochs, trainRMSE, testRMSE))
-                sys.stdout.flush()
-            if trainRMSE < bestTestLoss:
-                bestTestLoss = trainRMSE
-                bestEpochTestLoss = epoch
-                if triggerNewLine:
+                # If all training data has been seen "once" epoch is done
+                if epochIsDone:
                     # Compute test set loss etc:
                     testRMSE  = sess.run(RMSE, feed_dict={x: xTest , y: yTest})
-                    # trainRMSE = sess.run(RMSE, feed_dict={x: xTrain, y: yTrain})
+                    list_of_rmse_test.append(testRMSE)
+                    list_of_rmse_train.append(trainRMSE)
                     sys.stdout.write('\r' + ' '*80) # White out line
-                    sys.stdout.write('\r%5d/%5d. RMSE: train: %10g, test: %10g\n' % \
+                    sys.stdout.write('\r%3d/%3d. RMSE: train: %10g, test: %10g\n' % \
                                     (epoch+1, numberOfEpochs, trainRMSE, testRMSE))
                     sys.stdout.flush()
+
                     # If saving is enabled, save the graph variables ('w', 'b')
                     if saveFlag:
                         saveFileName = "SavedRuns/run"
                         saver.save(sess, saveFileName, global_step=(epoch+1))
                         saveGraphFunc(sess, weights, biases, epoch, hiddenLayers, nNodes)
-                triggerNewLine = False
+
     sys.stdout.write('\n' + ' '*105) # White out line for sake of pretty command line output lol
     sys.stdout.flush()
     print "\n"
     np.savetxt("testRMSE.txt", list_of_rmse_test)
     np.savetxt("trainRMSE.txt", list_of_rmse_train)
     import matplotlib.pyplot as plt
-    plt.subplot(2,1,1)
-    plt.plot(list_of_rmse_test)
-    plt.subplot(2,1,2)
-    plt.plot(list_of_rmse_train)
+    plt.subplot(3,1,1)
+    xTest_for_plot = np.linspace(1,10,len(list_of_rmse_test))
+    xTrain_for_plot = np.linspace(1,10,len(list_of_rmse_train))
+    plt.plot(xTrain_for_plot, list_of_rmse_train, label="train")
+    plt.plot(xTest_for_plot, list_of_rmse_test, label="test", lw=2.0)
+    plt.subplot(3,1,2)
+    plt.semilogy(xTrain_for_plot, list_of_rmse_train, label="train")
+    plt.semilogy(xTest_for_plot, list_of_rmse_test, label="test", lw=2.0)
+    plt.subplot(3,1,3)
+    plt.loglog(xTrain_for_plot, list_of_rmse_train, label="train")
+    plt.loglog(xTest_for_plot, list_of_rmse_test, label="test", lw=2.0)
     plt.show()
     return weights, biases, neurons, bestTestLoss/float(testSize)
 
@@ -148,35 +139,28 @@ def saveGraphFunc(sess, weights, biases, epoch, hiddenLayers, nNodes):
                 outFile.write(" ")
             outFile.write("\n")
 
-def example_Stillinger_Weber():
+def example_Stillinger_Weber(filename, epochs):
     # Variables for Stillinger Weber
-    sigma = 2.0951
+    # sigma = 2.0951
+    # Number of symmetry functions describing local env. of atom i
+    # _, input_vars = generate_symmfunc_input_Si_v1()
+    _, input_vars = generate_symmfunc_input_Si_Behler()
 
     tf.reset_default_graph() # Perhaps unneccessary dunno, too lazy to test
 
-    global filename
     global readTrainDataFromFile
-    # filename = "stillinger-weber-symmetry-data.txt"
-    filename = "SW_train_20000_n10_v1.txt"
-    if len(sys.argv) > 1:
-        filename = str(sys.argv[1])
-        print "Filename gotten from command line:",filename
-    if len(sys.argv) > 2:
-        epochs = int(sys.argv[2])
-    else:
-        epochs = 500000
+
     readTrainDataFromFile = True
 
     # number of samples
-    testSize  = 200  # Noise free data
-    trainSize = 100  # Not really trainSize, but rather BATCH SIZE
+    testSize  = 10000  # Noise free data
+    batchSize = 1000   # Train size is determined by length of loaded file
 
     # IDEA: Perhaps this should be varied under training?
     # numberOfNeighbors = 12 # of Si that are part of computation
     learning_rate     = 0.001
 
-    # Number of symmetry functions describing local env. of atom i
-    _, input_vars = generate_symmfunc_input_Si(sigma)
+    # Always just one output = energy
     output_vars = 1 # Potential energy of atom i
 
     x = tf.placeholder('float', shape=(None, input_vars),  name="x")
@@ -191,17 +175,43 @@ def example_Stillinger_Weber():
                                                          bInitMethod  = 'normal')
 
     print "---------------------------------------"
-    nNodes       = 40
-    hiddenLayers = 4
+    nNodes       = 35
+    hiddenLayers = 2
     weights, biases, neurons, epochlossPerN = train_neural_network(x, y, epochs, \
-                nNodes, hiddenLayers, trainSize, testSize, learning_rate)
+                nNodes, hiddenLayers, batchSize, testSize, learning_rate)
+
+def example_Lennard_Jones():
+    # Variables for LJ
+    sigma = 1.0
+    _, input_vars = generate_symmfunc_input_LJ(sigma)
+    #TODO: To be implemented...
+
+def parseCommandLine():
+    if len(sys.argv) < 3:
+        print "Usage:"
+        print ">>> python training_nn.py FILENAME EPOCHS"
+        print ">>> python training_nn.py SW_train_data.txt 5000"
+        sys.exit(0)
+    else:
+        filename = str(sys.argv[1])
+        print "Filename gotten from command line:",filename
+        epochs = int(sys.argv[2])
+    return filename, epochs
 
 
 if __name__ == '__main__':
     # Prepare for new run:
     deleteOldData()
 
+    # Get filename of traindata and number of epochs from command line
+    filename, epochs = parseCommandLine()
+
     # Run example of SW:
     t0 = timer()
-    example_Stillinger_Weber()
+    example_Stillinger_Weber(filename, epochs)
     print "Wall clock time:", timer() - t0
+
+    # Run example of LJ:
+    # t0 = timer()
+    # example_Lennard_Jones(filename, epochs)
+    # print "Wall clock time:", timer() - t0

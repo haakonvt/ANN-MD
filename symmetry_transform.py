@@ -10,7 +10,7 @@ def symmetryTransform(G_funcs, xyz_i):
          [x2 y2 z2]
          [x3 y3 z3]
          [x4 y4 z4]]
-    G_funcs : List of dictionaries to be used. 'None' means dont use.
+    G_funcs : List of lists to be used.
         [G1, G2, G3, G4, G5]
 
     Output:
@@ -28,7 +28,7 @@ def symmetryTransform(G_funcs, xyz_i):
     G2   |   rc, rs, eta
     G3   |   rc, kappa
     G4   |   rc, eta, zeta, lambda_c
-    G5   |   rc, eta, zeta, lambda_c, rs=0
+    G5   |   rc, eta, zeta, lambda_c
     """
 
     xyz  = xyz_i
@@ -94,7 +94,7 @@ def symmetryTransform(G_funcs, xyz_i):
         """
         ### This is G5 ###
         ### Variables:
-            - rc, eta, zeta, lambda_c, rs=0
+            - rc, eta, zeta, lambda_c
         """
         G = 4
         N = G_funcs[G][0]
@@ -104,39 +104,34 @@ def symmetryTransform(G_funcs, xyz_i):
             eta      = float(values[n,1])
             zeta     = float(values[n,2])
             lambda_c = float(values[n,3])
-            rs       = float(values[n,3])
-            G_output.append( G5(xyz, rc, eta, zeta, lambda_c, rs) )
+            G_output.append( G5(xyz, rc, eta, zeta, lambda_c) )
     return np.array(G_output)
 
-"""def example_generate_G_funcs_input():
-    G_vars  = [1,3,2,4,4] # Number of variables symm.func. take as input
-    G_funcs = [0,0,0,0,0] # Choose no symm.funcs.
-    G_args_list = ["rc[i][j]",
-                   "rc[i][j], rs[i][j], eta[i][j]",
-                   "rc[i][j], kappa[i][j]",
-                   "rc[i][j], eta[i][j], zeta[i][j], lambda_c[i][j]",
-                   "rc[i][j], eta[i][j], zeta[i][j], lambda_c[i][j]"]
-    # Make use of symmetry function G2 and G4: (indicate how many)
-    which_symm_funcs = [2, 4] ; wsf = which_symm_funcs
-    how_many_funcs   = [8, 43]; hmf = how_many_funcs
+def symmetryTransformBehler(all_params_list, xyz):
+    r        = np.linalg.norm(xyz, axis=1)
+    G_output = []
+    for cur_param_set in all_params_list:
+        if cur_param_set[0] == 2:
+            """
+            ### This is G2 ###
+            ### Variables: ###
+                - rc, rs, eta
+            """
+            eta, rc, rs = cur_param_set[1:4] # notice not same order
+            G_output.append( G2(r, float(rc), float(rs), float(eta)) )
+        elif cur_param_set[0] == 4:
+            """
+            ### This is G4 ###
+            ### Variables:
+                - rc, eta, zeta, lambd
+            """
+            eta, rc, zeta, lambd = cur_param_set[1:5] # notice not same order
+            G_output.append( G4(xyz, float(rc), float(eta), float(zeta), float(lambd)) )
+        else:
+            print "Symm.func. number:", cur_param_set[0], "was not understood. Input 2 or 4..."
+    return np.array(G_output)
 
-    # This is where the pain begins -_-
-    # Note: [3] * 4 evaluates to [3,3,3,3]
-    rc       = [[1.8]*hmf[0], [1.8]*hmf[1]]
-    rs       = [[0.0]*hmf[0], [None]]
-    eta      = [[0.001, 0.01, 0.02, 0.035, 0.06, 0.1, 0.2, 0.4], \
-                [0.001]*4 + [0.003]*4 + [0.008]*4 + [0.015]*8 + [0.025]*8 + [0.045]*8 + [0.08]*7]
-    zeta     = [[None], [1,1,2,2]*4 + [1,1,2,2,4,4,16,16]*3 + [1,1,2,2,4,4,16]]
-    lambda_c = [[None],[-1,1]*21 + [1]]
 
-    i = 0 # Will be first G-func
-    for G,n in zip(wsf, hmf):
-        G_funcs[G-1] = [n,  np.zeros((n, G_vars[G-1]))]
-        for j in range(n):
-            symm_args = eval("np.array([%s])" %(G_args_list[G-1]))
-            G_funcs[G-1][1][j] = symm_args
-        i += 1
-    return G_funcs"""
 
 if __name__ == '__main__':
     print "This will perform tests of the Stillinger Weber potential"
