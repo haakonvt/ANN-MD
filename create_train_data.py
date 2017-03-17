@@ -34,12 +34,12 @@ class loadFromFile:
             sys.exit(0)
         if shuffle_rows:
             np.random.shuffle(self.buffer) # Shuffles rows only (not columns) by default *yey*
-        print "Tot. data points loaded from file:", self.buffer.shape[0]
+        # print "Tot. data points loaded from file:", self.buffer.shape[0]
         self.testData  = self.buffer[0:testSizeSkip,:] # Pick out test data from total
         self.buffer    = self.buffer[testSizeSkip:,:]  # Use rest of data for training
         self.totTrainData = self.buffer.shape[0]
 
-    def __call__(self, size, return_test=False, verbose=False):
+    def __call__(self, size, return_test=False, verbose=False, shuffle=False):
         """
         Returns the next batch of size 'size' which is a set of rows from the loaded file
         """
@@ -59,11 +59,12 @@ class loadFromFile:
             if i + size > self.totTrainData:
                 epochIsDone = True # Move to next epoch, all data has been seen
                 if verbose:
-                    print "\nWarning: All training data 'used', shuffling & starting over!\n"
-                np.random.shuffle(self.buffer) # Must be done, no choice!
+                    print "\nWarning: All training data 'used', shuffling (most likely) & starting over!\n"
+                if shuffle:
+                    np.random.shuffle(self.buffer) # Must be done, no choice!
                 self.index = 0 # Dont use test data for training!
                 i          = 0
-            if size < self.totTrainData:
+            if size <= self.totTrainData:
                 symm_vec_train = self.buffer[i:i+size, 1:] # Second column->last
                 Ep_train       = self.buffer[i:i+size, 0]  # First column
                 Ep_train       = Ep_train.reshape([size,1])
@@ -496,20 +497,23 @@ def lammpsDataToSymmToFile(open_filename, save_filename, size):
         File looks like this
         x1 y1 z1 r1^2 x2 y2 z2 r2^2 ... xN yN zN rN^2 Ep
         """
-        # G_funcs, nmbr_G = generate_symmfunc_input_Si_Behler()
-        G_funcs, nmbr_G = generate_symmfunc_input_Si_v1()
+        G_funcs, nmbr_G = generate_symmfunc_input_Si_Behler()
+        # G_funcs, nmbr_G = generate_symmfunc_input_Si_v1()
         xTrain          = np.zeros((size, nmbr_G))
         for i,row in enumerate(lammps_file):
+            # if i < 10000:
+            #     continue
+            # i -= 10000
             if i >= size:
-                continue # Skip to next row
+                continue # Skip to the next row
             xyzr_i = np.array(row.split(), dtype=float)
             n_elem = len(xyzr_i-1)/4 # Remove Ep and compute
             # Ep.append(xyzr_i[-1]) # This is broken by lammps somehow... compute my own below
             xyzr_i = xyzr_i[:-1].reshape(n_elem,4)
             xyz_i  = xyzr_i[:,:-1]
             Ep.append(potentialEnergyGenerator(xyz_i, PES=PES_Stillinger_Weber))
-            # xTrain[i,:] = symmetryTransformBehler(G_funcs, xyz_i)
-            xTrain[i,:] = symmetryTransform(G_funcs, xyz_i)
+            xTrain[i,:] = symmetryTransformBehler(G_funcs, xyz_i)
+            # xTrain[i,:] = symmetryTransform(G_funcs, xyz_i)
             if (i+1)%10 == 0:
                 sys.stdout.write('\r' + ' '*80) # White out line
                 percent = round(float(i+1)/size*100., 2)
@@ -599,35 +603,10 @@ if __name__ == '__main__':
         testLammpsData(filename)
 
     if dumpLammpsFile:
-        size          = 100000 # should be <= rows in file!!!!
-        open_filename = "Important_data/neighbours.txt"
-        save_filename = "SW_train_lammps_%d_v2.txt" %size
+        size          = 20000 # should be <= rows in file!!!!
+        open_filename = "Important_data/neighbours_100000.txt"
+        save_filename = "SW_train_lammps_%d_BEH.txt" %size
         lammpsDataToSymmToFile(open_filename, save_filename, size)
-
-    if dumpMultiple:
-        size = 20000
-        neigh_list = [4,6,8,10,12,14]
-        t0_tot = timer()
-        for neighbors in neigh_list:
-            filename  = "SW_train_G4_%s_n%s.txt" %(str(size), str(neighbors))
-            print "When run directly (like now), this file dumps training data to file:"
-            print '"%s"' %filename
-            print "-------------------------------"
-            print "Neighbors", neighbors
-            print "-------------------------------"
-            PES       = PES_Stillinger_Weber
-            t0 = cimer()
-            createTrainDataDump(size, neighbors, PES, filename, \
-                                only_concatenate=concatenateFiles, verbose=True, \
-                                no_load=True)
-            t1 = timer() - t0
-            print "\nComputation of %d neighbors took: %.2f seconds" %(neighbors,t1)
-        t1 = timer() - t0_tot
-        if t1 > 1000:
-            t1 /= 60.
-            print "\nTotal computation took: %.2f minutes" %t1
-        else:
-            print "\nTotal computation took: %.2f seconds" %t1
 
     if dumpToFile:
         if False:
@@ -664,6 +643,31 @@ if __name__ == '__main__':
                                 only_concatenate=concatenateFiles, verbose=True)
             t1 = timer() - t0
             print "\nComputation took: %.2f seconds" %t1
+
+    if dumpMultiple:
+        size = 20000
+        neigh_list = [4,6,8,10,12,14]
+        t0_tot = timer()
+        for neighbors in neigh_list:
+            filename  = "SW_train_G4_%s_n%s.txt" %(str(size), str(neighbors))
+            print "When run directly (like now), this file dumps training data to file:"
+            print '"%s"' %filename
+            print "-------------------------------"
+            print "Neighbors", neighbors
+            print "-------------------------------"
+            PES       = PES_Stillinger_Weber
+            t0 = cimer()
+            createTrainDataDump(size, neighbors, PES, filename, \
+                                only_concatenate=concatenateFiles, verbose=True, \
+                                no_load=True)
+            t1 = timer() - t0
+            print "\nComputation of %d neighbors took: %.2f seconds" %(neighbors,t1)
+        t1 = timer() - t0_tot
+        if t1 > 1000:
+            t1 /= 60.
+            print "\nTotal computation took: %.2f minutes" %t1
+        else:
+            print "\nTotal computation took: %.2f seconds" %t1
 
     if testClass:
         testSize  = 100 # Remove these from training set

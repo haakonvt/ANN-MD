@@ -3,6 +3,7 @@ Train a neural network to approximate a potential energy surface
 with the use of symmetry functions that transform xyz-data.
 """
 
+from plot_tools import plotTestVsTrainLoss
 from file_management import deleteOldData
 from timeit import default_timer as timer # Best timer indep. of system
 import neural_network_setup as nns
@@ -13,14 +14,10 @@ import numpy as np
 import sys,os
 from math import sqrt
 
-
-def train_neural_network(x, y, epochs, nNodes, hiddenLayers, batchSize, testSize, learning_rate=0.0002):
+def train_neural_network(x, y, epochs, nNodes, hiddenLayers, batchSize, testSize, learning_rate=0.0002, loss_function="L2"):
     # Number of cycles of feed-forward and backpropagation
-    numberOfEpochs = epochs; bestEpochTestLoss = -1; startEpoch = 0
-    bestTrainLoss = 1E100; bestTestLoss = 1E100; bestTestLossSinceLastPlot = 1E100; prevErr = 1E100
-    triggerNewLine = False; saveNow = False; verbose=True
-
-    saveFlag = True
+    numberOfEpochs = epochs
+    bestTrainLoss  = 1E100
     list_of_rmse_train = []
     list_of_rmse_test  = []
 
@@ -28,9 +25,14 @@ def train_neural_network(x, y, epochs, nNodes, hiddenLayers, batchSize, testSize
     with tf.Session() as sess:
         # Setup of graph for later computation with tensorflow
         prediction, weights, biases, neurons = neuralNetwork(x)
-        cost = tf.nn.l2_loss(prediction-y) # Train with RMSE error
-        # cost = tf.reduce_mean(np.abs(prediction-y)) # Train with L1 norm
-        RMSE = tf.sqrt(tf.reduce_mean(tf.square(prediction-y)))    # tf.reduce_mean same as np.mean
+        if   loss_function == "L2": # Train with RMSE error
+            cost = tf.nn.l2_loss(prediction-y)
+        elif loss_function == "L1": # Train with L1 norm
+            cost = tf.reduce_mean(np.abs(prediction-y))
+        # Create operation to get the RMSE loss: (not for training, only evaluation)
+        RMSE = tf.sqrt(tf.reduce_mean(tf.square(prediction-y)))
+
+        # Create the optimizer, with cost function to minimize
         optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost)
 
         # Initialize variables or restore from file
@@ -45,20 +47,19 @@ def train_neural_network(x, y, epochs, nNodes, hiddenLayers, batchSize, testSize
             saver.save(sess, saveFileName, global_step=0)
             saveGraphFunc(sess, weights, biases, 0, hiddenLayers, nNodes)
 
-        if readTrainDataFromFile:
-            all_data = loadFromFile(testSize, filename, shuffle_rows=True)
-            xTest, yTest = all_data(testSize, return_test=True)
-        else: # Generate on the fly
-            xTest, yTest = createTrainData(testSize, neighbors, PES_Stillinger_Weber, verbose)
+        # Load into memory the train/test data, and generate batch for first epoch
+        all_data     = loadFromFile(testSize, filename, shuffle_rows=True)
+        xTest, yTest = all_data(testSize, return_test=True)
+
         # Loop over epocs
         for epoch in range(0, numberOfEpochs):
-            if epoch == 1:
-                verbose     = False # Print out some info first iteration ONLY
             epochIsDone = False
             # Loop over all the train data set in batches
             while not epochIsDone:
                 # Read new data from loaded training data file
-                xTrain, yTrain, epochIsDone = all_data(batchSize) # Get next batch of data
+                # If you train with batchSize = size of entire train set, use keyword arg:
+                # batchIsTrain=True        to skip shuffling each epoch!
+                xTrain, yTrain, epochIsDone = all_data(batchSize, shuffle=False) # Get next batch of data
 
                 # Loop through batches of the training set and adjust parameters
                 # 'optimizer' still uses quick cost-function
@@ -70,41 +71,26 @@ def train_neural_network(x, y, epochs, nNodes, hiddenLayers, batchSize, testSize
                     testRMSE  = sess.run(RMSE, feed_dict={x: xTest , y: yTest})
                     list_of_rmse_test.append(testRMSE)
                     list_of_rmse_train.append(trainRMSE)
-                    sys.stdout.write('\r' + ' '*80) # White out line
-                    sys.stdout.write('\r%3d/%3d. RMSE: train: %10g, test: %10g\n' % \
-                                    (epoch+1, numberOfEpochs, trainRMSE, testRMSE))
-                    sys.stdout.flush()
+                    # Print after performance after loss has decreased 5 % (or last epoch)
+                    if bestTrainLoss-1E-14 > trainRMSE*1.05 or epoch == numberOfEpochs-1:
+                        bestTrainLoss = trainRMSE
+                        sys.stdout.write('\r' + ' '*60) # White out line
+                        sys.stdout.write('\r%3d/%3d. RMSE: train: %10g, test: %10g\n' % \
+                                        (epoch+1, numberOfEpochs, trainRMSE, testRMSE))
+                        sys.stdout.flush()
 
-                    # If saving is enabled, save the graph variables ('w', 'b')
-                    if saveFlag:
-                        saveFileName = "SavedRuns/run"
-                        saver.save(sess, saveFileName, global_step=(epoch+1))
-                        saveGraphFunc(sess, weights, biases, epoch, hiddenLayers, nNodes)
+                        # If saving is enabled, save the graph variables ('w', 'b')
+                        if saveFlag:
+                            saveFileName = "SavedRuns/run"
+                            saver.save(sess, saveFileName, global_step=(epoch+1))
+                            saveGraphFunc(sess, weights, biases, epoch, hiddenLayers, nNodes)
 
-    sys.stdout.write('\n' + ' '*105) # White out line for sake of pretty command line output lol
+    sys.stdout.write('\n' + ' '*60) # White out line for sake of pretty command line output lol
     sys.stdout.flush()
     print "\n"
-    np.savetxt("testRMSE.txt", list_of_rmse_test)
-    np.savetxt("trainRMSE.txt", list_of_rmse_train)
-    import matplotlib.pyplot as plt
-    plt.subplot(3,1,1)
-    xTest_for_plot = np.linspace(1,10,len(list_of_rmse_test))
-    xTrain_for_plot = np.linspace(1,10,len(list_of_rmse_train))
-    plt.plot(xTrain_for_plot, list_of_rmse_train, label="train")
-    plt.plot(xTest_for_plot, list_of_rmse_test, label="test", lw=2.0)
-    plt.subplot(3,1,2)
-    plt.semilogy(xTrain_for_plot, list_of_rmse_train, label="train")
-    plt.semilogy(xTest_for_plot, list_of_rmse_test, label="test", lw=2.0)
-    plt.subplot(3,1,3)
-    plt.loglog(xTrain_for_plot, list_of_rmse_train, label="train")
-    plt.loglog(xTest_for_plot, list_of_rmse_test, label="test", lw=2.0)
-    plt.show()
-    return weights, biases, neurons, bestTestLoss/float(testSize)
-
-def actualLoss(tf_l2_loss, size):
-    # Correcting TF function: l2_loss = sum(t ** 2) / 2
-    output = sqrt(tf_l2_loss * 2.0 / float(size))
-    return output
+    np.savetxt("_testRMSE.txt", list_of_rmse_test)
+    np.savetxt("_trainRMSE.txt", list_of_rmse_train)
+    return weights, biases, neurons, bestTrainLoss/float(batchSize)
 
 def saveGraphFunc(sess, weights, biases, epoch, hiddenLayers, nNodes):
     """
@@ -140,45 +126,68 @@ def saveGraphFunc(sess, weights, biases, epoch, hiddenLayers, nNodes):
             outFile.write("\n")
 
 def example_Stillinger_Weber(filename, epochs):
-    # Variables for Stillinger Weber
-    # sigma = 2.0951
     # Number of symmetry functions describing local env. of atom i
     # _, input_vars = generate_symmfunc_input_Si_v1()
-    _, input_vars = generate_symmfunc_input_Si_Behler()
+    _, symm_vec_length = generate_symmfunc_input_Si_Behler()
 
-    tf.reset_default_graph() # Perhaps unneccessary dunno, too lazy to test
-
-    global readTrainDataFromFile
-
-    readTrainDataFromFile = True
+    # Make sure we start out with a fresh graph
+    tf.reset_default_graph()
 
     # number of samples
-    testSize  = 10000  # Noise free data
+    testSize  = 5000  # Should be 20-30 % of total train data
     batchSize = 1000   # Train size is determined by length of loaded file
 
-    # IDEA: Perhaps this should be varied under training?
     # numberOfNeighbors = 12 # of Si that are part of computation
     learning_rate     = 0.001
 
     # Always just one output = energy
-    output_vars = 1 # Potential energy of atom i
+    input_vars  = symm_vec_length   # Number of inputs = number of symm.funcs. used
+    output_vars = 1                 # Potential energy of atom i
+
+    # Size of neural network
+    activation_function = "sigmoid"
+    loss_function       = "L2"
+    nNodes              = 5
+    hiddenLayers        = 1
 
     x = tf.placeholder('float', shape=(None, input_vars),  name="x")
     y = tf.placeholder('float', shape=(None, output_vars), name="y")
 
-    global neuralNetwork
-    neuralNetwork = lambda data : nns.modelSigmoid(data, nNodes       = nNodes,
-                                                         hiddenLayers = hiddenLayers,
-                                                         inputs       = input_vars,
-                                                         outputs      = output_vars,
-                                                         wInitMethod  = 'normal',
-                                                         bInitMethod  = 'normal')
+    global saveFlag, neuralNetwork
+    saveFlag      = False
+    neuralNetwork = lambda data : nns.model(data,
+                                            activation_function = activation_function,
+                                            nNodes              = nNodes,
+                                            hiddenLayers        = hiddenLayers,
+                                            inputs              = input_vars,
+                                            outputs             = output_vars,
+                                            wInitMethod         = 'normal',
+                                            bInitMethod         = 'normal')
 
     print "---------------------------------------"
-    nNodes       = 35
-    hiddenLayers = 2
-    weights, biases, neurons, epochlossPerN = train_neural_network(x, y, epochs, \
-                nNodes, hiddenLayers, batchSize, testSize, learning_rate)
+    print "Using: learning rate:   %g" %learning_rate
+    print "       # hidden layers: %d" %hiddenLayers
+    print "       # nodes:         %d" %nNodes
+    print "       activation.func: %s" %activation_function
+    print "       loss_function:   %s" %loss_function
+    print "       batch size:      %d" %batchSize
+    print "       test size:       %d" %testSize
+    print "---------------------------------------"
+
+    # Start training!
+    weights, biases, neurons, RMSE = train_neural_network(x, y, epochs, nNodes, hiddenLayers, batchSize, testSize, learning_rate, loss_function)
+
+    print "---------------------------------------"
+    print "Training was done with these settings:"
+    print "       learning rate:   %g" %learning_rate
+    print "       # hidden layers: %d" %hiddenLayers
+    print "       # nodes:         %d" %nNodes
+    print "       activation.func: %s" %activation_function
+    print "       loss_function:   %s" %loss_function
+    print "       batch size:      %d" %batchSize
+    print "       test size:       %d" %testSize
+    print "---------------------------------------"
+
 
 def example_Lennard_Jones():
     # Variables for LJ
@@ -210,6 +219,9 @@ if __name__ == '__main__':
     t0 = timer()
     example_Stillinger_Weber(filename, epochs)
     print "Wall clock time:", timer() - t0
+
+    # Plot how the RMSE changed over time / epochs
+    plotTestVsTrainLoss()
 
     # Run example of LJ:
     # t0 = timer()
