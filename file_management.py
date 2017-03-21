@@ -1,53 +1,63 @@
+import shutil
 import os,glob
+import datetime
 
-def foldersCheck():
-    """
-    Do folders exist?
-    """
-    foldersMade = 0
-    for filename in ['SavedRuns','SomePlots','SavedGraphs']:
-        if not os.path.exists(filename):
-            os.makedirs(filename) # Create folders
-            foldersMade += 1
-    return foldersMade
+def keepData(save_dir):
+    yes_or_no = raw_input("Do you want to keep this run? (If not -> auto-delete) [Y/n] ")
+    if yes_or_no in ["yes","YES","Yes","y","Y",""]:
+        new_save_dir = save_dir[0:32] + "KEEP-" + save_dir[32:]
+        os.rename(save_dir, new_save_dir)
+        print "Data from this run kept safely on disk:\n'%s'" %(new_save_dir)
+    else:
+        shutil.rmtree(save_dir)
+        print "Data from this run deleted!"
 
 def deleteOldData():
-    foldersMade = foldersCheck()
-    if not foldersMade == 3: # No old data, since folders have just been created
-        keepData = raw_input('\nDelete all previous plots, run- and graph-data? (y/yes/enter)')
-        if keepData in ['y','yes','']:
-            for someFile in glob.glob("SavedRuns/run*"):
-                os.remove(someFile)
-            for someFile in glob.glob("SomePlots/fig*.png"):
-                os.remove(someFile)
-            for someFile in glob.glob("SavedGraphs/tf_graph_WB*.txt"):
-                os.remove(someFile)
-
-def findLoadFileName():
-    """
-    Not updated for TF v1.0
-    """
-    print "Not updated for TF v1.0. Exiting!"
-    import sys
-    sys.exit(0)
-    if os.path.isdir("SavedRuns"):
-        file_list = []
-        for a_file in os.listdir("SavedRuns"):
-            if a_file[0] == ".": # Ignore hidden files
-                continue
-            elif a_file == "checkpoint":
-                continue
+    directory = "Important_data/Trained_networks/"
+    for something in os.listdir(directory):
+        if something[:5] == "KEEP-":
+            continue
+        else:
+            file_path = directory + something
+            if os.path.isdir(file_path): # Leave files
+                shutil.rmtree(file_path)
             else:
-                file_list.append(int(a_file[3:-4]))
-        if len(file_list) == 0:
-            print "No previous runs exits. Exiting..."; sys.exit()
-        newest_file = "run" + str(np.max(file_list)) + ".dat"
-        startEpoch  = np.max(file_list)
-        print 'Model restored from file:', newest_file
-        return newest_file,startEpoch
-    else:
-        os.makedirs("SavedRuns")
-        print "Created 'SavedRuns'-directory. No previous runs exits. Exiting..."; sys.exit()
+                os.remove(file_path)     # ...or not
+
+def saveGraphFunc(sess, weights, biases, epoch, hiddenLayers, nNodes, save_dir, activation_function):
+    """
+    Saves the neural network weights and biases to file,
+    in a format readably by 'humans'
+    """
+    saveFileName = save_dir + "/NN_params_%d.txt" %(epoch)
+    with open(saveFileName, 'w') as outFile:
+        outStr = "%1d %1d %s" % (hiddenLayers, nNodes, activation_function)
+        outFile.write(outStr + '\n')
+        size = len(sess.run(weights))
+        for i in range(size):
+            i_weights = sess.run(weights[i])
+            if i < size-1:
+                for j in range(len(i_weights)):
+                    for k in range(len(i_weights[0])):
+                        outFile.write("%g" % i_weights[j][k])
+                        outFile.write(" ")
+                    outFile.write("\n")
+            else:
+                for j in range(len(i_weights[0])):
+                    for k in range(len(i_weights)):
+                        outFile.write("%g" % i_weights[k][j])
+                        outFile.write(" ")
+                    outFile.write("\n")
+        outFile.write("\n")
+        for biasVariable in biases:
+            i_biases = sess.run(biasVariable)
+            for j in range(len(i_biases)):
+                outFile.write("%g" % i_biases[j])
+                outFile.write(" ")
+            outFile.write("\n")
+
+def timeStamp():
+    return datetime.datetime.now().strftime("%H.%M.%S--%d.%m.%Y")
 
 if __name__ == '__main__':
     deleteOldData()
