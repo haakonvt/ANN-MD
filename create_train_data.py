@@ -61,7 +61,7 @@ class loadFromFile:
                 if verbose:
                     print "\nWarning: All training data 'used', shuffling (most likely) & starting over!\n"
                 if shuffle:
-                    np.random.shuffle(self.buffer) # Must be done, no choice!
+                    np.random.shuffle(self.buffer)
                 self.index = 0 # Dont use test data for training!
                 i          = 0
             if size <= self.totTrainData:
@@ -72,10 +72,10 @@ class loadFromFile:
                 return symm_vec_train, Ep_train, epochIsDone
             else:
                 print "Requested batch size %d, is larger than data set %d" %(size, self.totTrainData)
-    def return_all_data(self):
-        """TODO: Is this ever used?"""
-        return self.buffer
     def number_of_train_data(self):
+        """
+        Returns the total number of data points after test size has been removed
+        """
         return len(self.buffer[:,0])
 
 def potentialEnergyGenerator(xyz_N, PES):

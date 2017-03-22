@@ -1,9 +1,15 @@
+from file_management import findPathToData
 import matplotlib.pyplot as plt
 import numpy as np
 
-def plotTestVsTrainLoss():
-    list_of_rmse_test = np.loadtxt("_testRMSE.txt")
-    list_of_rmse_train = np.loadtxt("_trainRMSE.txt")
+def plotTestVsTrainLoss(list_of_rmse_train, list_of_rmse_test):
+    if not list_of_rmse_test or not list_of_rmse_train:
+        """
+        No input gotten (or not enough), must read from file
+        """
+        location = findPathToData()
+        list_of_rmse_test  = np.loadtxt(location + "testRMSE.txt")
+        list_of_rmse_train = np.loadtxt(location + "trainRMSE.txt")
 
     plt.subplot(3,1,1)
     xTest_for_plot = np.linspace(0,1,len(list_of_rmse_test))
@@ -19,5 +25,4 @@ def plotTestVsTrainLoss():
     plt.show()
 
 if __name__ == '__main__':
-    print "You know this should not be run directly, right?"
     plotTestVsTrainLoss()

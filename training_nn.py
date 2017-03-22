@@ -1,18 +1,23 @@
 """
 Train a neural network to approximate a potential energy surface
 with the use of symmetry functions that transform xyz-data.
+
+After training (hopefully has converged), we dump the neural network
+to file so that we can use it in a molecular dynamics simulation.
+(like LAMMPS)
 """
 
 from plot_tools import plotTestVsTrainLoss
-from file_management import saveGraphFunc, keepData, timeStamp
+from file_management import saveGraphFunc, keepData, timeStamp, findPathToData
 from timeit import default_timer as timer # Best timer indep. of system
 import neural_network_setup as nns
 from create_train_data import *
 from symmetry_transform import *
 import tensorflow as tf
+from math import sqrt
 import numpy as np
 import sys,os
-from math import sqrt
+
 
 def train_neural_network(x, y, epochs, nNodes, hiddenLayers, batchSize, testSize,
                      learning_rate=0.001, loss_function="L2", activation_function="sigmoid",
@@ -22,11 +27,17 @@ def train_neural_network(x, y, epochs, nNodes, hiddenLayers, batchSize, testSize
     bestTrainLoss  = 1E100
     p_imrove       = 1.2  # Write out how training is going after this improvment in loss
     print_often    = False
-    datetime_stamp = timeStamp()
-    save_dir       = "Important_data/Trained_networks/" + datetime_stamp + "-" + potential_name
-    os.makedirs(save_dir)  # Create folder if not present
+    if saveFlag:
+        datetime_stamp = timeStamp()
+        save_dir       = "Important_data/Trained_networks/" + datetime_stamp + "-" + potential_name
+        os.makedirs(save_dir)  # Create folder if not present
+
+    # Lists to contain evolution of error in test + training set
     list_of_rmse_train = []
     list_of_rmse_test  = []
+
+    # Begin timing (wall-, not cpu time. Not meant for rigid comparison!)
+    t0 = timer()
 
     # Begin session
     with tf.Session() as sess:
@@ -35,7 +46,7 @@ def train_neural_network(x, y, epochs, nNodes, hiddenLayers, batchSize, testSize
         if   loss_function == "L2": # Train with RMSE error
             cost = tf.nn.l2_loss(prediction-y)
         elif loss_function == "L1": # Train with L1 norm
-            cost = tf.reduce_mean(np.abs(prediction-y))
+            cost = tf.reduce_sum(np.abs(prediction-y))
         # Create operation to get the RMSE loss: (not for training, only evaluation)
         RMSE = tf.sqrt(tf.reduce_mean(tf.square(prediction-y)))
 
@@ -46,44 +57,46 @@ def train_neural_network(x, y, epochs, nNodes, hiddenLayers, batchSize, testSize
         sess.run(tf.global_variables_initializer())
 
         # Create a save-op: (keeps only last iteration, but also one per 30 min trained)
-        saver = tf.train.Saver(weights + biases, max_to_keep=1, keep_checkpoint_every_n_hours=0.5)
+        saver = tf.train.Saver(max_to_keep=1, keep_checkpoint_every_n_hours=0.5)
 
-        # If loadflag specified, load a pre-trained net
+        # If loadPath specified, load a pre-trained net
         if loadPath: # If loadPath is not length zero
             saver.restore(sess, loadPath)
 
-        # Save first version of the net
+        # Save first version of the net (not really a point)
         if saveFlag:
             saveFileName = save_dir
             saveFileName += "/run"
-            saver.save(sess, saveFileName, global_step=0)
-            saveGraphFunc(sess, weights, biases, 0, hiddenLayers, nNodes, save_dir, activation_function)
+            saver.save(sess, saveFileName + "0", write_meta_graph=False)
 
-        # Load into memory the train/test data, and generate batch for first epoch
-        all_data     = loadFromFile(testSize, filename, shuffle_rows=True)
-        xTest, yTest = all_data(testSize, return_test=True)
+        # Load into memory the train/test data, and generate batch
+        all_data          = loadFromFile(testSize, filename, shuffle_rows=True)
+        xTest, yTest      = all_data(testSize, return_test=True)
+        xTrain, yTrain, _ = all_data(batchSize, shuffle=False) # Get next batch of data
+        train_size        = all_data.number_of_train_data() # Note that SUM(batch_size) = train_size
 
-        # Loop over epocs
+        # Loop over all epocs
         for epoch in range(0, numberOfEpochs):
-            epochIsDone = False
+            avg_cost    = 0.    # Will contain the train cost
+            epochIsDone = False # Mission: to stop when all training data has been seen once --> goto next epoch
+
             # Loop over all the train data set in batches
             while not epochIsDone:
-                # Read new data from loaded training data file
-                # If you train with batchSize = size of entire train set, use keyword arg:
-                # batchIsTrain=True        to skip shuffling each epoch!
-                xTrain, yTrain, epochIsDone = all_data(batchSize, shuffle=False) # Get next batch of data
-
                 # Loop through batches of the training set and adjust parameters
-                sess.run(optimizer, feed_dict={x: xTrain, y: yTrain})
+                _, batch_cost = sess.run([optimizer, cost], feed_dict={x: xTrain, y: yTrain})
+                avg_cost     += batch_cost / train_size
+
+                # Read new data from loaded training data file (to use next step, unless epoch done)
+                xTrain, yTrain, epochIsDone = all_data(batchSize, shuffle=False) # Get next batch of data
 
                 # If all training data has been seen "once" epoch is done
                 if epochIsDone:
                     # Compute test set loss etc:
                     testRMSE  = sess.run(RMSE, feed_dict={x: xTest , y: yTest})
-                    trainRMSE = sess.run(RMSE, feed_dict={x: xTrain , y: yTrain})
+                    trainRMSE = sqrt(avg_cost*2) # Math.sqrt does this quickest (only one number)
                     list_of_rmse_test.append(testRMSE)
                     list_of_rmse_train.append(trainRMSE)
-                    # Print after performance after loss has decreased 5 % (or last epoch)
+                    # Print out performance after loss has decreased "p_improv" percent (or last epoch)
                     if bestTrainLoss-1E-14 > trainRMSE*p_imrove or epoch == numberOfEpochs-1:
                         if not print_often and trainRMSE < 0.008:
                             p_imrove    = 1.015 # Write out progress more often
@@ -96,24 +109,31 @@ def train_neural_network(x, y, epochs, nNodes, hiddenLayers, batchSize, testSize
 
                         # If saving is enabled, save the graph variables ('w', 'b')
                         if saveFlag and epoch > 0.75*(numberOfEpochs-1): # When 25 % epochs left, write TF restart file
-                            saver.save(sess, saveFileName, global_step=(epoch+1))
-                        if epoch == numberOfEpochs-1: # Save last edition of NN (weights & biases)
+                            saver.save(sess, saveFileName + str(epoch+1), write_meta_graph=False)
+                        if saveFlag and epoch == numberOfEpochs-1: # Save last edition of NN (weights & biases)
                             saveGraphFunc(sess, weights, biases, epoch+1, hiddenLayers, nNodes, save_dir, activation_function)
-    sys.stdout.write('\n' + ' '*60) # White out line for sake of pretty command line output lol
-    sys.stdout.flush(); print "\n"
-    np.savetxt(save_dir +  "/testRMSE.txt", list_of_rmse_test)
-    np.savetxt(save_dir + "/trainRMSE.txt", list_of_rmse_train)
+    sys.stdout.write('\n' + ' '*60 + '\n') # White out line for sake of pretty command line output lol
+    sys.stdout.flush()
 
-    # Plot how the RMSE changed over time / epochs
-    plotTestVsTrainLoss()
+    # End timing
+    wall_time = timer() - t0
 
-    # Keep data from this simulation/training
-    keepData(save_dir)
-    return weights, biases, neurons, bestTrainLoss/float(batchSize)
+    if saveFlag:
+        # Save the evolution of the RMSE error:
+        np.savetxt(save_dir +  "/testRMSE.txt", list_of_rmse_test)
+        np.savetxt(save_dir + "/trainRMSE.txt", list_of_rmse_train)
+
+        # Plot how the RMSE changed over time / epochs
+        plotTestVsTrainLoss(list_of_rmse_train, list_of_rmse_test)
+
+        # Mark data from this simulation/training as worthy to keep?
+        keepData(save_dir)
+    return wall_time
+
 
 def example_Stillinger_Weber():
     # Get filename of traindata and number of epochs from command line
-    global filename, saveFlag,loadPath
+    global filename, saveFlag, loadPath
     filename, epochs, nodes, hiddenLayers, saveFlag, loadPath = parseCommandLine()
 
     # Number of symmetry functions describing local env. of atom i
@@ -142,14 +162,14 @@ def example_Stillinger_Weber():
     y = tf.placeholder('float', shape=(None, output_vars), name="y")
 
     global neuralNetwork
-    neuralNetwork = lambda data : nns.model(data,
-                                            activation_function = activation_function,
-                                            nNodes              = nodes,
-                                            hiddenLayers        = hiddenLayers,
-                                            inputs              = input_vars,
-                                            outputs             = output_vars,
-                                            wInitMethod         = 'normal',
-                                            bInitMethod         = 'normal')
+    neuralNetwork = lambda data: nns.model(data,
+                                           activation_function = activation_function,
+                                           nNodes              = nodes,
+                                           hiddenLayers        = hiddenLayers,
+                                           inputs              = input_vars,
+                                           outputs             = output_vars,
+                                           wInitMethod         = 'normal',
+                                           bInitMethod         = 'normal')
 
     print "---------------------------------------"
     print "Using: learning rate:   %g" %learning_rate
@@ -162,16 +182,16 @@ def example_Stillinger_Weber():
     print "---------------------------------------"
 
     # Let the training commence!
-    weights, biases, neurons, RMSE = train_neural_network(x, y,
-                                                        epochs,
-                                                         nodes,
-                                                  hiddenLayers,
-                                                     batchSize,
-                                                      testSize,
-                                                 learning_rate,
-                                                 loss_function,
-                                           activation_function,
-                                           potential_name="SW")
+    wall_time = train_neural_network(x, y,
+                                      epochs,
+                                      nodes,
+                                      hiddenLayers,
+                                      batchSize,
+                                      testSize,
+                                      learning_rate,
+                                      loss_function,
+                                      activation_function,
+                                      "SW")
 
     print "---------------------------------------"
     print "Training was done with these settings:"
@@ -183,6 +203,7 @@ def example_Stillinger_Weber():
     print "       batch size:      %d" %batchSize
     print "       test size:       %d" %testSize
     print "---------------------------------------"
+    print "Wall clock time:", wall_time
 
 
 def example_Lennard_Jones():
@@ -214,23 +235,19 @@ def parseCommandLine():
         saveFlag = bool_from_user_input(str(sys.argv[5]))
         loadPath = bool_from_user_input(str(sys.argv[6])) # Still just a bool
         if loadPath:
-            loadPath = raw_input("Please specify location of loadfile (whole path): ")
+            loadPath = findPathToData(find_tf_savefile=True)
     return filename, epochs, nodes, hdnlayrs, saveFlag, loadPath
 
 if __name__ == '__main__':
     # Example 1: Argon
     # Potential: Lennard-Jones:
     if False:
-        t0 = timer()
         example_Lennard_Jones(filename, epochs)
-        print "Wall clock time:", timer() - t0
 
     # Example 2: Silicon
     # Potential: Stillinger-Weber
     if True:
-        t0 = timer()
         save_dir = example_Stillinger_Weber()
-        print "Wall clock time:", timer() - t0
 
     # Example 3: SiC (Silicon Carbide)
     # Potential: Vashista
