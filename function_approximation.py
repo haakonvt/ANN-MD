@@ -16,6 +16,9 @@ import time
 # Stop matplotlib from giving FutureWarning
 warnings.filterwarnings("ignore", category=FutureWarning, module="matplotlib")
 
+print "Warning, this code does not run properly in its current form. Exiting."
+sys.exit(0)
+
 def deleteOldData():
     # Does folders exist?
     foldersCheck = 0
