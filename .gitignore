@@ -1,2 +1,5 @@
 # Ignore compiled python files
-    *.pyc
+*.pyc
+
+# Ignore data-files, typically .txt
+*.txt

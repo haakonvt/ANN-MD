@@ -76,6 +76,7 @@ def print_G2_derivative(dG2d_var, var, out_c_code=False, out_latex=False):
     if out_latex:
         print latex(dG2d_var)
 
+# Symbolic differentiation of G2
 dG2dXij = diff(G2, xij)
 dG2dYij = diff(G2, yij)
 dG2dZij = diff(G2, zij)
@@ -84,6 +85,7 @@ print_G2_derivative(dG2dXij, xij, out_c_code, out_latex)
 print_G2_derivative(dG2dYij, xij, out_c_code, out_latex)
 print_G2_derivative(dG2dZij, xij, out_c_code, out_latex)
 
+# Symbolic differentiation of G4
 dG4dXij = diff(G4, xij)
 dG4dYij = diff(G4, yij)
 dG4dZij = diff(G4, zij)
