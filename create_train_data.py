@@ -7,6 +7,7 @@ Generate XYZ data with corresponding energies from some chosen PES:
 from symmetry_transform import symmetryTransform, symmetryTransformBehler
 from timeit import default_timer as timer # Best timer indep. of system
 from math import pi,sqrt,exp,cos,isnan,sin
+from file_management import loadFromFile, readXYZ_Files
 from warnings import filterwarnings
 import tensorflow as tf
 import numpy as np
@@ -15,68 +16,6 @@ import time
 import sys
 import os
 
-
-class loadFromFile:
-    """
-    Loads file, shuffle rows and keeps it in memory for later use.
-    """
-    def __init__(self, testSizeSkip, filename, shuffle_rows=False):
-        self.skipIndices = testSizeSkip
-        self.index       = 0
-        self.filename    = filename
-        if os.path.isfile(filename): # If file exist, load it
-            try:
-                self.buffer = np.loadtxt(filename, delimiter=',')
-            except Exception as e:
-                print "Could not load buffer. Error message follows:\n %s" %s
-        else:
-            print 'Found no training data called:\n"%s"\“...exiting!' %filename
-            sys.exit(0)
-        if shuffle_rows:
-            np.random.shuffle(self.buffer) # Shuffles rows only (not columns) by default *yey*
-        # print "Tot. data points loaded from file:", self.buffer.shape[0]
-        self.testData  = self.buffer[0:testSizeSkip,:] # Pick out test data from total
-        self.buffer    = self.buffer[testSizeSkip:,:]  # Use rest of data for training
-        self.totTrainData = self.buffer.shape[0]
-
-    def __call__(self, size, return_test=False, verbose=False, shuffle=False):
-        """
-        Returns the next batch of size 'size' which is a set of rows from the loaded file
-        """
-        epochIsDone = False
-        testSize = self.skipIndices
-        i        = self.index # Easier to read next couple of lines
-        if return_test:
-            if size != testSize:
-                print "You initiated this class with testSize = %d," %testSize
-                print "and now you request trainSize = %d." %size
-                print "I will continue with %d (blame the programmer)" %testSize
-            symm_vec_test = self.testData[:,1:] # Second column->last
-            Ep_test       = self.testData[:,0]  # First column
-            Ep_test       = Ep_test.reshape([testSize,1])
-            return symm_vec_test, Ep_test
-        else:
-            if i + size > self.totTrainData:
-                epochIsDone = True # Move to next epoch, all data has been seen
-                if verbose:
-                    print "\nWarning: All training data 'used', shuffling (most likely) & starting over!\n"
-                if shuffle:
-                    np.random.shuffle(self.buffer)
-                self.index = 0 # Dont use test data for training!
-                i          = 0
-            if size <= self.totTrainData:
-                symm_vec_train = self.buffer[i:i+size, 1:] # Second column->last
-                Ep_train       = self.buffer[i:i+size, 0]  # First column
-                Ep_train       = Ep_train.reshape([size,1])
-                self.index += size # Update so that next time class is called, we get the next items
-                return symm_vec_train, Ep_train, epochIsDone
-            else:
-                print "Requested batch size %d, is larger than data set %d" %(size, self.totTrainData)
-    def number_of_train_data(self):
-        """
-        Returns the total number of data points after test size has been removed
-        """
-        return len(self.buffer[:,0])
 
 def potentialEnergyGenerator(xyz_N, PES):
     if len(xyz_N.shape) == 2: # This is just a single neighbor list
@@ -384,10 +323,14 @@ def generate_symmfunc_input_Si_Behler():
                 tot_nmbr_symm = int(linesplit[0])
                 continue
             if linesplit[0] == "G2":
-                "'G2', 2.0, 6.0, 0.0 # eta, cut, Rs"
+                """
+                'G2', 2.0, 6.0, 0.0 # eta, cut, Rs
+                """
                 paramsForSymm.append([2] + list(linesplit[1:4]))
             elif linesplit[0] == "G4":
-                '"G4", 0.01 , 6.0, 1, 1      # eta, cut, zeta, lambda'
+                """
+                'G4', 0.01 , 6.0, 1, 1      # eta, cut, zeta, lambda
+                """
                 paramsForSymm.append([4] + list(linesplit[1:5]))
             else:
                 print linesplit[0], "not understood. Should be 'G2' or 'G4'..."
@@ -513,7 +456,6 @@ def lammpsDataToSymmToFile(open_filename, save_filename, size):
             xyz_i  = xyzr_i[:,:-1]
             Ep.append(potentialEnergyGenerator(xyz_i, PES=PES_Stillinger_Weber))
             xTrain[i,:] = symmetryTransformBehler(G_funcs, xyz_i)
-            # xTrain[i,:] = symmetryTransform(G_funcs, xyz_i)
             if (i+1)%10 == 0:
                 sys.stdout.write('\r' + ' '*80) # White out line
                 percent = round(float(i+1)/size*100., 2)
@@ -587,13 +529,24 @@ def testAngularInvarianceEpAndSymmFuncs():
 
 
 if __name__ == '__main__':
-    dumpToFile       = False
-    concatenateFiles = False
-    dumpMultiple     = False
+    """
+    Suggestion: Only have ONE option set to True at the time.
+    """
+    dumpToFile         = False
+    concatenateFiles   = False
+    dumpMultiple       = False
+    dumpLammpsFile     = False
+    xyz_to_neigh_lists = True
+
+    # Tests
     testAngSymm      = False
     testLammps       = False
-    dumpLammpsFile   = True
     testClass        = False
+
+    if xyz_to_neigh_lists:
+        file_path = "Important_data/TestNN/enfil_sw.xyz"
+        save_file = "Important_data/neigh_list_from_xyz.txt"
+        readXYZ_Files(file_path, save_file)
 
     if testAngSymm:
         testAngularInvarianceEpAndSymmFuncs()
@@ -603,8 +556,8 @@ if __name__ == '__main__':
         testLammpsData(filename)
 
     if dumpLammpsFile:
-        size          = 20000 # should be <= rows in file!!!!
-        open_filename = "Important_data/neighbours_100000.txt"
+        size          = 10000 # should be <= rows in file!!!!
+        open_filename = "Important_data/neigh_100K.txt"
         save_filename = "SW_train_lammps_%d_BEH.txt" %size
         lammpsDataToSymmToFile(open_filename, save_filename, size)
 

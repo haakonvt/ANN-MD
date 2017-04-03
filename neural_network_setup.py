@@ -41,7 +41,7 @@ def modelSigmoid(data, nNodes=10, hiddenLayers=3, inputs=2, outputs=1,
         h = tf.nn.sigmoid(tf.matmul(neurons[layer-1], w) + b)
         weights.append(w)
         biases.append(b)
-        neurons.append(hSetup of ) (single node, energy)
+        neurons.append(h)
 
     # Setup of output layer (single node, energy)
     w_o = init_weights([nNodes, outputs], hiddenLayers+1, 'w', wInitMethod)

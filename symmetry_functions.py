@@ -69,16 +69,15 @@ def G4(xyz, rc, eta, zeta, lambda_c, cutoff=cutoff_cos):
     # r_jk_array = np.zeros((N,N))
     # r_jk_array = np.linalg.norm(xyz - xyz) ??? nowhere near finished
     for j in range(N):
-        for k in range(N):
-            if j == k:
-                continue # Skip j=k
+        for k in range(j+1,N):
+            # if j == k:
+            #     continue # Skip j=k
             r_jk       = np.linalg.norm(xyz[j] - xyz[k])
             cos_theta  = np.dot(xyz[j],xyz[k]) / (r[j]*r[k])
             cutoff_ijk = r_cut[j] * r_cut[k] * cutoff(r_jk, rc)
             part_sum   = (1+lambda_c * cos_theta)**zeta * exp(-eta*(r[j]**2+r[k]**2+r_jk**2))
             summation += part_sum*cutoff_ijk
     summation *= 2**(1-zeta) # Normalization factor
-
     return summation
 
 def G5(xyz, rc, eta, zeta, lambda_c, cutoff=cutoff_cos):

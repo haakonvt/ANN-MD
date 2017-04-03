@@ -8,11 +8,11 @@ to file so that we can use it in a molecular dynamics simulation.
 """
 
 from plot_tools import plotTestVsTrainLoss
-from file_management import saveGraphFunc, keepData, timeStamp, findPathToData
 from timeit import default_timer as timer # Best timer indep. of system
 import neural_network_setup as nns
-from create_train_data import *
 from symmetry_transform import *
+from create_train_data import *
+from file_management import *
 import tensorflow as tf
 from math import sqrt
 import numpy as np
@@ -124,7 +124,7 @@ def train_neural_network(x, y, epochs, nNodes, hiddenLayers, batchSize, testSize
         np.savetxt(save_dir + "/trainRMSE.txt", list_of_rmse_train)
 
         # Plot how the RMSE changed over time / epochs
-        plotTestVsTrainLoss(list_of_rmse_train, list_of_rmse_test)
+        plotTestVsTrainLoss(save_dir, list_of_rmse_train, list_of_rmse_test)
 
         # Mark data from this simulation/training as worthy to keep?
         keepData(save_dir)
@@ -143,8 +143,8 @@ def example_Stillinger_Weber():
     tf.reset_default_graph()
 
     # number of samples
-    testSize  = 5000  # Should be 20-30 % of total train data
-    batchSize = 1000   # Train size is determined by length of loaded file
+    testSize  = int(raw_input("Test size? "))  # Should be 20-30 % of total train data
+    batchSize = int(raw_input("Batch size? "))   # Train size is determined by length of loaded file
 
     # Set the learning rate. Standard value: 0.001
     learning_rate = 0.001
