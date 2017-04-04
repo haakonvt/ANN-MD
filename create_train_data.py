@@ -145,7 +145,7 @@ def createTrainData(size, neighbors, PES, verbose=False):
         Ep    = potentialEnergyGenerator(xyz_N, PES)
         Ep    = Ep.reshape([size,1])
 
-        G_funcs, nmbr_G = generate_symmfunc_input_Si_v1_v1(sigma)
+        G_funcs, nmbr_G = generate_symmfunc_input_Si_Behler()
         nn_input        = np.zeros((size, nmbr_G))
 
         for i in range(size):
@@ -229,12 +229,13 @@ def createTrainDataDump(size, neighbors, PES, filename, only_concatenate=False, 
                 sys.stdout.write('\rComputing potential energy. Done!\n')
                 sys.stdout.flush()
 
-            G_funcs, nmbr_G = generate_symmfunc_input_Si_v1(sigma)
+            G_funcs, nmbr_G = generate_symmfunc_input_Si_Behler()
             xTrain          = np.zeros((size, nmbr_G))
 
             for i in range(size):
                 xyz_i       = xyz_N_train[:,:,i]
-                xTrain[i,:] = symmetryTransform(G_funcs, xyz_i)
+                # xTrain[i,:] = symmetryTransform(G_funcs, xyz_i)
+                xTrain[i,:] = symmetryTransformBehler(G_funcs, xyz_i)
                 if verbose and (i+1)%10 == 0:
                     sys.stdout.write('\r' + ' '*80) # White out line
                     percent = round(float(i+1)/size*100., 2)
@@ -433,7 +434,7 @@ def testLammpsData(filename):
         # print len(Ep)
         # print np.mean(Ep), np.mean(Ep2), np.mean(Ep2)/np.mean(Ep)
 
-def lammpsDataToSymmToFile(open_filename, save_filename, size):
+def NeighListDataToSymmToFile(open_filename, save_filename, size):
     Ep = []
     with open(open_filename, 'r') as lammps_file:
         """
@@ -467,7 +468,8 @@ def lammpsDataToSymmToFile(open_filename, save_filename, size):
     dump_data[:,1:] = xTrain
     np.random.shuffle(dump_data) # Shuffle the rows of the data i.e. the symmetry vectors
     np.savetxt(save_filename, dump_data, delimiter=',')
-    # print "\n"
+    print "Saved symmetry vector training data to file:"
+    print '"%s"' %save_filename
 
 def rotateXYZ(xyz, xr, yr, zr, angle="radians"):
     """
@@ -505,7 +507,7 @@ def testAngularInvarianceEpAndSymmFuncs():
     PES       = PES_Stillinger_Weber
     xyz_N     = createXYZ(r_low, r_high, size, neighbors, verbose=False) # size = 10, neigh = 5
     Ep0       = potentialEnergyGenerator(xyz_N, PES)
-    G_funcs, nmbr_G = generate_symmfunc_input_Si_v1(sigma)
+    G_funcs, nmbr_G = generate_symmfunc_input_Si_Behler()
     symm_func_vec0  = np.zeros((size, nmbr_G))
     symm_func_vec1  = np.zeros((size, nmbr_G))
     for i in range(size):
@@ -532,13 +534,18 @@ if __name__ == '__main__':
     """
     Suggestion: Only have ONE option set to True at the time.
     """
+    # Based on random structures, fixed number of neighbors
     dumpToFile         = False
-    concatenateFiles   = False
-    dumpMultiple       = False
-    dumpLammpsFile     = False
-    xyz_to_neigh_lists = True
+    concatenateFiles   = False # This can be set to True though if
+    # As above, but variable number of neighbors
+    dumpMultiple       = True
 
-    # Tests
+    # Structures from SW run in lammps
+    dumpXYZ_file       = False # Own algo: "readXYZ_Files"
+    xyz_to_neigh_lists = False
+    dumpLammpsFile     = False # Neig.lists from lammps
+
+    # Unit tests
     testAngSymm      = False
     testLammps       = False
     testClass        = False
@@ -548,8 +555,11 @@ if __name__ == '__main__':
         save_file = "Important_data/neigh_list_from_xyz.txt"
         readXYZ_Files(file_path, save_file)
 
-    if testAngSymm:
-        testAngularInvarianceEpAndSymmFuncs()
+    if dumpXYZ_file:
+        size          = 4830 # should be <= rows in file!!!!
+        open_filename = "Important_data/neigh_list_from_xyz.txt"
+        save_filename = "SW_train_xyz_%d.txt" %size
+        NeighListDataToSymmToFile(open_filename, save_filename, size)
 
     if testLammps:
         filename = "Important_data/neighbours.txt"
@@ -559,13 +569,13 @@ if __name__ == '__main__':
         size          = 10000 # should be <= rows in file!!!!
         open_filename = "Important_data/neigh_100K.txt"
         save_filename = "SW_train_lammps_%d_BEH.txt" %size
-        lammpsDataToSymmToFile(open_filename, save_filename, size)
+        NeighListDataToSymmToFile(open_filename, save_filename, size)
 
     if dumpToFile:
-        if False:
+        if True:
             # This is SW
-            size = 2000
-            neighbors = 12
+            size = 5000
+            neighbors = 7
             # filename = "stillinger-weber-symmetry-data.txt"
             filename  = "SW_train_rs_%s_n%s.txt" %(str(size), str(neighbors))
             print "When run directly (like now), this file dumps training data to file:"
@@ -598,24 +608,27 @@ if __name__ == '__main__':
             print "\nComputation took: %.2f seconds" %t1
 
     if dumpMultiple:
-        size = 20000
-        neigh_list = [4,6,8,10,12,14]
+        size = 400 # PER single value in neigh_list
+        neigh_list = [4]*2 + [5]*6 + [6]*13 + [7]*14 + [8]*9 + [9]*3 + [10] # len: 48
         t0_tot = timer()
-        for neighbors in neigh_list:
-            filename  = "SW_train_G4_%s_n%s.txt" %(str(size), str(neighbors))
+        PES = PES_Stillinger_Weber
+        for ID,neighbors in enumerate(neigh_list):
+            filename  = "SW_train_%s_n%s_%s.txt" %(str(size), str(neighbors), str(ID))
             print "When run directly (like now), this file dumps training data to file:"
             print '"%s"' %filename
             print "-------------------------------"
             print "Neighbors", neighbors
             print "-------------------------------"
-            PES       = PES_Stillinger_Weber
-            t0 = cimer()
+            t0  = timer()
             createTrainDataDump(size, neighbors, PES, filename, \
                                 only_concatenate=concatenateFiles, verbose=True, \
                                 no_load=True)
             t1 = timer() - t0
             print "\nComputation of %d neighbors took: %.2f seconds" %(neighbors,t1)
         t1 = timer() - t0_tot
+        # Load all files into one master file
+        createTrainDataDump(0, 0, PES, "SW_train_manyneigh_final.txt", \
+                            only_concatenate=True, verbose=True, no_load=False)
         if t1 > 1000:
             t1 /= 60.
             print "\nTotal computation took: %.2f minutes" %t1
@@ -630,3 +643,6 @@ if __name__ == '__main__':
         print xTrain[:,0:5], "\n", yTrain
         xTrain, yTrain = all_data(1)
         print xTrain[:,0:5], "\n", yTrain # Make sure this is different from above print out
+
+    if testAngSymm:
+        testAngularInvarianceEpAndSymmFuncs()

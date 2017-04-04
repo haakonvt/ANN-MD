@@ -66,6 +66,11 @@ class loadFromFile:
         Returns the total number of data points after test size has been removed
         """
         return len(self.buffer[:,0])
+    def return_all_data(self):
+        """
+        Assumes testSize = 0 or else this will just return train data
+        """
+        return self.buffer
 
 def findPathToData(find_tf_savefile=False):
     folder      = "Important_data/Trained_networks/"
@@ -106,6 +111,7 @@ def keepData(save_dir):
     if yes_or_no in ["yes","YES","Yes","y","Y",""]:
         new_save_dir = save_dir[0:32] + "KEEP-" + save_dir[32:]
         os.rename(save_dir, new_save_dir)
+        shutil.copy2("Important_data/parameters.dat", new_save_dir)
         print "Data from this run kept safely on disk:\n'%s'" %(new_save_dir)
 
 def deleteOldData():
@@ -125,7 +131,7 @@ def saveGraphFunc(sess, weights, biases, epoch, hiddenLayers, nNodes, save_dir, 
     Saves the neural network weights and biases to file,
     in a format readably by 'humans'
     """
-    saveFileName = save_dir + "/NN_params_%d.txt" %(epoch)
+    saveFileName = save_dir + "/graph.dat"
     with open(saveFileName, 'w') as outFile:
         outStr = "%1d %1d %s 48 1" % (hiddenLayers, nNodes, activation_function) #TODO: 48 = nmbr of inputs
         outFile.write(outStr + '\n')
@@ -230,6 +236,8 @@ def compute_neigh_lists(xyz, master_neigh_list, samples_per_dt, cutoff):
                 nn_list.append(xyz_copy[j,0])
                 nn_list.append(xyz_copy[j,1])
                 nn_list.append(xyz_copy[j,2])
+                nn_list.append(r[j])
+        nn_list.append("nan") # This file does not containt pot. energy. So if wrongly read, give NAN
         master_neigh_list.append(nn_list)
         if i == tot_neig:
             break
