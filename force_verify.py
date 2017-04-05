@@ -16,24 +16,59 @@ def test_structure_3atom():
     xyz = np.array([[0,0,0],
                     [2,0,0],
                     [1,h,0]], dtype=float)
-    R = np.linalg.norm(xyz[1:,:], axis=1)
-    rij, rik      = R
-    xij, yij, zij = xyz[1,:]
-    xik, yik, zik = xyz[2,:]
     # print rij, rik, xij, yij, zij, xik, yik, zik
 
-    fx,fy,fz = evaluate_SW_forces(rij, rik, xij, yij, zij, xik, yik, zik)
+    fx,fy,fz = evaluate_SW_forces(xyz)#rij, rik, xij, yij, zij, xik, yik, zik)
     # print "SW, xyz:",fx,fy,fz
     # fx,fy,fz = evaluate_NN_forces(rij, rik, xij, yij, zij, xik, yik, zik)
     # print "SW, xyz:",fx,fy,fz
 
 
-def evaluate_SW_forces(rij, rik, xij, yij, zij, xik, yik, zik):
+def evaluate_SW_forces(xyz):
     """
     Stillinger and Weber,  Phys. Rev. B, v. 31, p. 5262, (1985)
 
     epsilon, sigma, a, lambda, gamma, costheta0, A, B, p, q
     2.1683 , 2.0951,  1.80,  21.0, 1.20,  -1.0/, 7.049556277,  0.6022245584,  4.0,  0.0
+    """
+    eps   = 2.1683
+    sig   = 2.0951
+    a     = 1.80
+    lamb  = 21.0
+    gam   = 1.2
+    A     = 7.049556277
+    B     = 0.6022245584
+    p     = 4.0
+    q     = 0.0
+    cos0 = -1.0/3.0
+
+    f_vec = np.zeros(3)
+
+    r  = np.linalg.norm(xyz[1:,:], axis=1) # Only j != i
+    U2 = A*eps*(B*(sig/r)**p-(sig/r)**q) * np.exp(sig/(r-a*sig)) * (r < a*sig)
+    # print U2, sum(U2)
+    dU2dR = -A*eps*sig*(B*(sig/r)**p - (sig/r)**q)*np.exp(sig/(-a*sig + r))/(-a*sig + r)**2 + A*eps*(-B*p*(sig/r)**p/r + q*(sig/r)**q/r)*np.exp(sig/(-a*sig + r))
+    for j in [0,1]:
+        f_vec += xyz[j,:]*dU2dR[j]/r[j]
+    # print dU2dR, sum(dU2dR)
+
+    """
+    i = 0, j = 1, k = 2
+    """
+    rij = r[0]
+    rik = r[1]
+    rjk = np.linalg.norm(xyz[1,:]-xyz[2,:])
+    cos_theta_jik = np.dot(xyz[1],xyz[2])                / (rij*rik)
+    cos_theta_ijk = np.dot(xyz[0]-xyz[1], xyz[2]-xyz[1]) / (rij*rjk)
+    cos_theta_ikj = np.dot(xyz[0]-xyz[2], xyz[1]-xyz[2]) / (rik*rjk)
+    def h(r1, r2, cos_theta):
+        term = exp(gam*sig/(r1-a*sig)) * exp(gam*sig/(r2-a*sig)) * lamb*eps*(cos_theta - cos0)**2
+        return term
+    U3 = h(rij, rik, cos_theta_jik) + h(rij, rjk, cos_theta_ijk) + h(rik, rjk, cos_theta_ikj)
+    print U3
+
+
+    return 0,0,0
     """
     a     = 1.80
     sigma = 2.0951
@@ -42,7 +77,7 @@ def evaluate_SW_forces(rij, rik, xij, yij, zij, xik, yik, zik):
     cosTheta0 = -1.0/3.0
     r0 = a*sigma
 
-    V = B*exp(sigma/(rij-r0) + sigma/(rik-r0)) * (cosTheta - cosTheta0)**2
+    V3 = B*exp(sigma/(rij-r0) + sigma/(rik-r0)) * (cosTheta - cosTheta0)**2
 
     dVdXij = -B*(cosTheta - cosTheta0)*(sigma*rij*rik*xij*(cosTheta - cosTheta0) \
             + 2*(r0 - rij)**2*(cosTheta*rik*xij - rij*xik))*exp(sigma*(-2*r0 + rij \
@@ -77,8 +112,7 @@ def evaluate_SW_forces(rij, rik, xij, yij, zij, xik, yik, zik):
     print "dVdYik", dVdYik
     print "dVdZik", dVdZik
 
-    return 0,0,0
-    """xij, yij, zij, xik, yik, zik = symbols('xij, yij, zij, xik, yik, zik')
+    xij, yij, zij, xik, yik, zik = symbols('xij, yij, zij, xik, yik, zik')
     B, costheta0, r0, ksi = symbols('B, cosTheta0, r0, ksi')
     rij, rik, rijDotRik, cosTheta = symbols('rij, rik, rijDotRik, cosTheta')
 
