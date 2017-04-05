@@ -102,8 +102,8 @@ def PES_Stillinger_Weber(xyz_i):
     g = 1.2 # gamma
     cos_tc = -1.0/3.0 # 109.47 deg
 
-    eps = 2.1683 # [eV]     # With reduced units = 1
-    sig = 2.0951 # [Å]      # With reduced units = 1
+    eps = 2.1683 # [eV]
+    sig = 2.0951 # [Å] 
 
     rc = (r < a*sig) # Bool array. "False" cast to 0 and "True" to 1
     filterwarnings("ignore", category=RuntimeWarning) # U2 below can give NaN
@@ -216,8 +216,8 @@ def createTrainDataDump(size, neighbors, PES, filename, only_concatenate=False, 
     else:
         if PES == PES_Stillinger_Weber: # i.e. if not 'only_concatenate'
             sigma       = 2.0951 # 1.0
-            r_low       = 0.85 * sigma
-            r_high      = 1.8  * sigma - 1E-8 # SW has a divide by zero at exactly cutoff
+            r_low       = 0.85 * sigma # Shortest possible dist between atom i and neighbor
+            r_high      = 1.8 * sigma - 1E-10 # SW has a divide by zero at exactly cutoff
             xyz_N_train = createXYZ(r_low, r_high, size, neighbors, verbose=verbose)
             if verbose:
                 sys.stdout.write('\r' + ' '*80) # White out line
@@ -436,13 +436,19 @@ def testLammpsData(filename):
 
 def NeighListDataToSymmToFile(open_filename, save_filename, size):
     Ep = []
+    if size == "all":
+        with open(open_filename, 'r') as lammps_file:
+            size = 0
+            for line in lammps_file:
+                size +=1
+            save_filename += "%d.txt" %size
     with open(open_filename, 'r') as lammps_file:
         """
         File looks like this
         x1 y1 z1 r1^2 x2 y2 z2 r2^2 ... xN yN zN rN^2 Ep
         """
-        G_funcs, nmbr_G = generate_symmfunc_input_Si_Behler()
         # G_funcs, nmbr_G = generate_symmfunc_input_Si_v1()
+        G_funcs, nmbr_G = generate_symmfunc_input_Si_Behler()
         xTrain          = np.zeros((size, nmbr_G))
         for i,row in enumerate(lammps_file):
             # if i < 10000:
@@ -538,12 +544,14 @@ if __name__ == '__main__':
     dumpToFile         = False
     concatenateFiles   = False # This can be set to True though if
     # As above, but variable number of neighbors
-    dumpMultiple       = True
+    dumpMultiple       = False
 
     # Structures from SW run in lammps
-    dumpXYZ_file       = False # Own algo: "readXYZ_Files"
-    xyz_to_neigh_lists = False
-    dumpLammpsFile     = False # Neig.lists from lammps
+    xyz_to_neigh_lists = True
+    dumpXYZ_file       = True # Own algo: "readXYZ_Files"
+
+    # Neig.lists from lammps with John-Anders algo
+    dumpLammpsFile     = False
 
     # Unit tests
     testAngSymm      = False
@@ -551,14 +559,24 @@ if __name__ == '__main__':
     testClass        = False
 
     if xyz_to_neigh_lists:
+        """
+        Takes XYZ files from LAMMPS dump and makes neighbor lists
+        """
+        cutoff         = 3.77118 # Stillinger-Weber
+        samples_per_dt = 1
+        test_boundary = False   # Just use atoms whereever they are
         file_path = "Important_data/TestNN/enfil_sw.xyz"
         save_file = "Important_data/neigh_list_from_xyz.txt"
-        readXYZ_Files(file_path, save_file)
+        readXYZ_Files(file_path, save_file, samples_per_dt, cutoff, test_boundary)
 
     if dumpXYZ_file:
-        size          = 4830 # should be <= rows in file!!!!
+        """
+        Takes neighbour lists and makes symmetry data / training data
+        """
+        size          = "all" # should be <= rows in file!!!!
         open_filename = "Important_data/neigh_list_from_xyz.txt"
-        save_filename = "SW_train_xyz_%d.txt" %size
+        if size == "all":
+            save_filename = "SW_train_xyz_"
         NeighListDataToSymmToFile(open_filename, save_filename, size)
 
     if testLammps:
@@ -608,7 +626,7 @@ if __name__ == '__main__':
             print "\nComputation took: %.2f seconds" %t1
 
     if dumpMultiple:
-        size = 400 # PER single value in neigh_list
+        size = 25 # PER single value in neigh_list
         neigh_list = [4]*2 + [5]*6 + [6]*13 + [7]*14 + [8]*9 + [9]*3 + [10] # len: 48
         t0_tot = timer()
         PES = PES_Stillinger_Weber

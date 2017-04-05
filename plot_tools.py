@@ -20,8 +20,8 @@ def plotTestVsTrainLoss(save_dir, list_of_rmse_train, list_of_rmse_test):
     plt.subplot(3,1,3)
     plt.semilogy(xTrain_for_plot, list_of_rmse_train, label="train")
     plt.loglog(xTest_for_plot, list_of_rmse_test, label="test") #, lw=2.0)
-    # plt.show()
     plt.savefig(save_dir+"/RMSE_evo.pdf")
+    plt.show()
 
 if __name__ == '__main__':
     plotTestVsTrainLoss()

@@ -5,6 +5,9 @@ import shutil
 import datetime
 import numpy as np
 
+def timeStamp():
+    return datetime.datetime.now().strftime("%H.%M.%S--%d.%m.%Y")
+
 class loadFromFile:
     """
     Loads file, shuffle rows and keeps it in memory for later use.
@@ -158,17 +161,13 @@ def saveGraphFunc(sess, weights, biases, epoch, hiddenLayers, nNodes, save_dir, 
                 outFile.write(" ")
             outFile.write("\n")
 
-def timeStamp():
-    return datetime.datetime.now().strftime("%H.%M.%S--%d.%m.%Y")
-
-def readXYZ_Files(path_to_file, save_name, cutoff=3.77118):
+def readXYZ_Files(path_to_file, save_name, samples_per_dt=30, cutoff=3.77118, test_boundary=True):
     """
     Create the master list.
     Neighbouring atoms will vary, so I use a nested list
     """
     print "NB: This might take some minutes, depending on the number of time steps!"
     master_neigh_list = []
-    samples_per_dt    = 30
     tot_nmbr_of_atoms = 0
     time_step         = 0
     with open(path_to_file, 'r') as xyzFile:
@@ -193,7 +192,7 @@ def readXYZ_Files(path_to_file, save_name, cutoff=3.77118):
                 sys.stdout.flush()
                 row = -1
                 time_step += 1
-                compute_neigh_lists(xyz_ti, master_neigh_list, samples_per_dt, cutoff)
+                compute_neigh_lists(xyz_ti, master_neigh_list, samples_per_dt, cutoff, test_boundary)
     with open(save_name, 'w') as xyzFile:
         print "\nWriting neighbourlists to file:"
         print save_name
@@ -203,7 +202,7 @@ def readXYZ_Files(path_to_file, save_name, cutoff=3.77118):
                 out_string += str(number) + " "
             xyzFile.write(out_string[:-1] + "\n")
 
-def compute_neigh_lists(xyz, master_neigh_list, samples_per_dt, cutoff):
+def compute_neigh_lists(xyz, master_neigh_list, samples_per_dt, cutoff, test_boundary=True):
     """
     Tip: Use at least 20x20x20 unit cells with i.e. Stillinger-Weber!
     """
@@ -213,13 +212,14 @@ def compute_neigh_lists(xyz, master_neigh_list, samples_per_dt, cutoff):
     # Set limit for distance to any wall x,y,z-direction
     r_max = xyz.max() - cutoff*1.1
     r_min = xyz.min() + cutoff*1.1
-    while True or i_tot_checked < tot_neig*100: # Stop computation eventually if too small system is given as input
+    while True and i_tot_checked < tot_neig*50: # Stop computation eventually if too small system is given as input
         i_tot_checked += 1
         rand_atom = np.random.randint(N)
         x,y,z = xyz[rand_atom,:]
-        if x < r_min or x > r_max or y < r_min or y > r_max or z < r_min or z > r_max:
-            # print "Too close",x,y,z
-            continue # Atom too close to wall
+        if test_boundary:
+            if x < r_min or x > r_max or y < r_min or y > r_max or z < r_min or z > r_max:
+                # print "Too close",x,y,z
+                continue # Atom too close to wall
         # Center coordinate system around chosen atom:
         i += 1 # Found one to use
         xyz_copy = np.copy(xyz)
