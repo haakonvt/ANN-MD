@@ -125,16 +125,31 @@ def PES_Stillinger_Weber(xyz_i):
         else:
             return 0.0
     # Sum up two body terms
-    U  = np.sum(U2)
-    if isnan(U):
-        U = U2_serial(r, rc)
-        print "\nNaN gotten, re-computing with serial code. U2 = ", U
+    U2_sum  = np.sum(U2)/2 # Each pair share this energy. Contribute half to each
+    if isnan(U2_sum):
+        U2_sum = U2_serial(r, rc)
+        print "\nNaN gotten, re-computing with serial code. U2 = ", U2_sum
     # Need a double sum to find three body terms
+    U3_sum = 0.0
     for j in range(N): # i < j
         for k in range(j+1,N): # i < j < k
-            cos_theta = np.dot(xyz[j],xyz[k]) / (r[j]*r[k])
-            U        += U3(r[j], r[k], cos_theta)
-    return U
+            cos_theta = np.dot(xyz[j], xyz[k]) / (r[j]*r[k])
+            U3_sum   += U3(r[j], r[k], cos_theta)
+    """
+    # Total system energy:
+    xyz = np.insert(xyz,0,np.zeros(3),axis=0) # Add our 0,0,0 atom
+    for i in range(N+1):
+        for j in range(i+1,N+1): # i < j
+            for k in range(j+1,N+1): # i < j < k
+                xyz_j = xyz[j]-xyz[i]
+                xyz_k = xyz[k]-xyz[i]
+                rij   = np.linalg.norm(xyz_j)
+                rik   = np.linalg.norm(xyz_k)
+                cos_theta = np.dot(xyz_j, xyz_k) / (rij*rik)
+                U3_sum   += U3(rij, rik, cos_theta)
+    """
+    U3_sum /= 3 # Each triplet share this energy. Contribute a third to each
+    return U3_sum + U2_sum
 
 def createTrainData(size, neighbors, PES, verbose=False):
     if PES == PES_Stillinger_Weber:
@@ -468,7 +483,7 @@ def NeighListDataToSymmToFile(open_filename, save_filename, size):
                 percent = round(float(i+1)/size*100., 2)
                 sys.stdout.write('\rTransforming xyz with symmetry functions. %.2f %% complete' %(percent))
                 sys.stdout.flush()
-    print "\nNmbr of lines in file", i+1, ", length Ep:", len(Ep), ", size --> file:", size, 
+    print "\nNmbr of lines in file", i+1, ", length Ep:", len(Ep), ", size --> file:", size
     dump_data = np.zeros((size, nmbr_G + 1))
     dump_data[:,0]  = Ep
     dump_data[:,1:] = xTrain
@@ -540,15 +555,13 @@ if __name__ == '__main__':
     """
     Suggestion: Only have ONE option set to True at the time.
     """
-    # Based on random structures, fixed number of neighbors
+    # Based on random structures, fixed/variable number of neighbors
     dumpToFile         = False
-    concatenateFiles   = False # This can be set to True though if
-    # As above, but variable number of neighbors
-    dumpMultiple       = False
+    dumpMultiple       = True
 
     # Structures from SW run in lammps
-    xyz_to_neigh_lists = True
-    dumpXYZ_file       = True # Own algo: "readXYZ_Files"
+    xyz_to_neigh_lists = False
+    dumpXYZ_file       = False # Own algo: "readXYZ_Files"
 
     # Neig.lists from lammps with John-Anders algo
     dumpLammpsFile     = False
@@ -593,7 +606,7 @@ if __name__ == '__main__':
         if True:
             # This is SW
             size = 5000
-            neighbors = 7
+            neighbors = 2
             # filename = "stillinger-weber-symmetry-data.txt"
             filename  = "SW_train_rs_%s_n%s.txt" %(str(size), str(neighbors))
             print "When run directly (like now), this file dumps training data to file:"
@@ -601,7 +614,7 @@ if __name__ == '__main__':
             print "-------------------------------"
             print "Neighbors", neighbors
             print "-------------------------------"
-            PES       = PES_Stillinger_Weber
+            PES = PES_Stillinger_Weber
             t0 = timer()
             createTrainDataDump(size, neighbors, PES, filename, \
                                 only_concatenate=concatenateFiles, verbose=True)
@@ -609,7 +622,7 @@ if __name__ == '__main__':
             print "\nComputation took: %.2f seconds" %t1
         else:
             # This is LJ
-            size = 100000
+            size = 10000
             neighbors = 8
             # filename = "stillinger-weber-symmetry-data.txt"
             filename  = "LJ_train_rs_%s_n%s.txt" %(str(size), str(neighbors))
@@ -621,13 +634,14 @@ if __name__ == '__main__':
             PES       = PES_Lennard_Jones
             t0 = timer()
             createTrainDataDump(size, neighbors, PES, filename, \
-                                only_concatenate=concatenateFiles, verbose=True)
+                                only_concatenate=False, verbose=True)
             t1 = timer() - t0
             print "\nComputation took: %.2f seconds" %t1
 
     if dumpMultiple:
-        size = 25 # PER single value in neigh_list
-        neigh_list = [4]*2 + [5]*6 + [6]*13 + [7]*14 + [8]*9 + [9]*3 + [10] # len: 48
+        size = 2500 # PER single value in neigh_list
+        # neigh_list = [4]*2 + [5]*6 + [6]*13 + [7]*14 + [8]*9 + [9]*3 + [10] # len: 48
+        neigh_list = [1, 2]
         t0_tot = timer()
         PES = PES_Stillinger_Weber
         for ID,neighbors in enumerate(neigh_list):
@@ -639,13 +653,13 @@ if __name__ == '__main__':
             print "-------------------------------"
             t0  = timer()
             createTrainDataDump(size, neighbors, PES, filename, \
-                                only_concatenate=concatenateFiles, verbose=True, \
+                                only_concatenate=False, verbose=True, \
                                 no_load=True)
             t1 = timer() - t0
             print "\nComputation of %d neighbors took: %.2f seconds" %(neighbors,t1)
         t1 = timer() - t0_tot
         # Load all files into one master file
-        createTrainDataDump(0, 0, PES, "SW_train_manyneigh_final.txt", \
+        createTrainDataDump(0, 0, PES, "SW_train_manyneigh_%d.txt" %(size*len(neigh_list)), \
                             only_concatenate=True, verbose=True, no_load=False)
         if t1 > 1000:
             t1 /= 60.
