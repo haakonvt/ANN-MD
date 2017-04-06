@@ -103,7 +103,7 @@ def PES_Stillinger_Weber(xyz_i):
     cos_tc = -1.0/3.0 # 109.47 deg
 
     eps = 2.1683 # [eV]
-    sig = 2.0951 # [Å] 
+    sig = 2.0951 # [Å]
 
     rc = (r < a*sig) # Bool array. "False" cast to 0 and "True" to 1
     filterwarnings("ignore", category=RuntimeWarning) # U2 below can give NaN
@@ -468,7 +468,7 @@ def NeighListDataToSymmToFile(open_filename, save_filename, size):
                 percent = round(float(i+1)/size*100., 2)
                 sys.stdout.write('\rTransforming xyz with symmetry functions. %.2f %% complete' %(percent))
                 sys.stdout.flush()
-    print "\nlen Ep", len(Ep), ", size", size, ", nmbr of lines in file", i+1
+    print "\nNmbr of lines in file", i+1, ", length Ep:", len(Ep), ", size --> file:", size, 
     dump_data = np.zeros((size, nmbr_G + 1))
     dump_data[:,0]  = Ep
     dump_data[:,1:] = xTrain
@@ -565,7 +565,7 @@ if __name__ == '__main__':
         cutoff         = 3.77118 # Stillinger-Weber
         samples_per_dt = 1
         test_boundary = False   # Just use atoms whereever they are
-        file_path = "Important_data/TestNN/enfil_sw.xyz"
+        file_path = "Important_data/TestNN/enfil_sw_3p.xyz"
         save_file = "Important_data/neigh_list_from_xyz.txt"
         readXYZ_Files(file_path, save_file, samples_per_dt, cutoff, test_boundary)
 
