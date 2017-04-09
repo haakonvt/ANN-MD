@@ -87,7 +87,7 @@ def train_neural_network(x, y, epochs, nNodes, hiddenLayers, batchSize, testSize
                 avg_cost     += batch_cost / train_size
 
                 # Read new data from loaded training data file (to use next step, unless epoch done)
-                xTrain, yTrain, epochIsDone = all_data(batchSize, shuffle=False) # Get next batch of data
+                xTrain, yTrain, epochIsDone = all_data(batchSize, shuffle=True) # Get next batch of data
 
                 # If all training data has been seen "once" epoch is done
                 if epochIsDone:
@@ -108,9 +108,9 @@ def train_neural_network(x, y, epochs, nNodes, hiddenLayers, batchSize, testSize
                         sys.stdout.flush()
 
                         # If saving is enabled, save the graph variables ('w', 'b')
-                        if saveFlag and epoch > 0.75*(numberOfEpochs-1): # When 25 % epochs left, write TF restart file
+                        if saveFlag and epoch > 0.7*(numberOfEpochs-1): # When 30 % epochs left, write TF restart file
                             saver.save(sess, saveFileName + str(epoch+1), write_meta_graph=False)
-                        if saveFlag and epoch == numberOfEpochs-1: # Save last edition of NN (weights & biases)
+                        if saveFlag: # and (epoch > 0.7*(numberOfEpochs-1) or epoch == numberOfEpochs-1): # Save last edition of NN (weights & biases)
                             saveGraphFunc(sess, weights, biases, epoch+1, hiddenLayers, nNodes, save_dir, activation_function)
     sys.stdout.write('\n' + ' '*60 + '\n') # White out line for sake of pretty command line output lol
     sys.stdout.flush()
@@ -154,7 +154,7 @@ def example_Stillinger_Weber():
     output_vars = 1                 # Potential energy of atom i
 
     # Choice of loss- and activation function of the neural network
-    activation_function = "sigmoid"
+    activation_function = "tanh"
     loss_function       = "L2"
 
     # Create placeholders for the input and output variables

@@ -12,7 +12,7 @@ class loadFromFile:
     """
     Loads file, shuffle rows and keeps it in memory for later use.
     """
-    def __init__(self, testSizeSkip, filename, shuffle_rows=False):
+    def __init__(self, testSizeSkip, filename, shuffle_rows=True):
         self.skipIndices = testSizeSkip
         self.index       = 0
         self.filename    = filename
@@ -134,7 +134,7 @@ def saveGraphFunc(sess, weights, biases, epoch, hiddenLayers, nNodes, save_dir, 
     Saves the neural network weights and biases to file,
     in a format readably by 'humans'
     """
-    saveFileName = save_dir + "/graph.dat"
+    saveFileName = save_dir + "/graph%d.dat" %epoch
     with open(saveFileName, 'w') as outFile:
         outStr = "%1d %1d %s 48 1" % (hiddenLayers, nNodes, activation_function) #TODO: 48 = nmbr of inputs
         outFile.write(outStr + '\n')
@@ -161,12 +161,18 @@ def saveGraphFunc(sess, weights, biases, epoch, hiddenLayers, nNodes, save_dir, 
                 outFile.write(" ")
             outFile.write("\n")
 
-def readXYZ_Files(path_to_file, save_name, samples_per_dt=30, cutoff=3.77118, test_boundary=True):
+def readXYZ_Files(path_to_file, save_name, samples_per_dt=30, cutoff=3.77118, test_boundary=True, return_array=False):
     """
     Create the master list.
     Neighbouring atoms will vary, so I use a nested list
     """
+    print "\nReading XYZ-file:"
+    print '"%s"' %path_to_file
     print "NB: This might take some minutes, depending on the number of time steps!"
+    if samples_per_dt == "all":
+        return_all     = True
+    else:
+        return_all     = False
     master_neigh_list = []
     tot_nmbr_of_atoms = 0
     time_step         = 0
@@ -179,6 +185,7 @@ def readXYZ_Files(path_to_file, save_name, samples_per_dt=30, cutoff=3.77118, te
                     tot_nmbr_of_atoms = int(line)
                     xyz_ti = np.zeros((tot_nmbr_of_atoms, 3))
                     print "Number of atoms:", tot_nmbr_of_atoms
+                    samples_per_dt = int(tot_nmbr_of_atoms)
                     continue
                 elif row == 1:
                     print 'Comment line said: "%s"' %line[:-1]
@@ -188,21 +195,54 @@ def readXYZ_Files(path_to_file, save_name, samples_per_dt=30, cutoff=3.77118, te
             index = row - 2
             xyz_ti[index,:] = line.split()[1:]
             if index == tot_nmbr_of_atoms-1:
-                sys.stdout.write("\rTime step %d done!" %time_step)
-                sys.stdout.flush()
+                if time_step != 0:
+                    sys.stdout.write("\rTime step %d done!" %time_step)
+                    sys.stdout.flush()
                 row = -1
                 time_step += 1
-                compute_neigh_lists(xyz_ti, master_neigh_list, samples_per_dt, cutoff, test_boundary)
-    with open(save_name, 'w') as xyzFile:
-        print "\nWriting neighbourlists to file:"
-        print save_name
-        for single_list in master_neigh_list:
-            out_string = ""
-            for number in single_list:
-                out_string += str(number) + " "
-            xyzFile.write(out_string[:-1] + "\n")
+                if return_array:
+                    compute_neigh_arrays(xyz_ti, master_neigh_list, cutoff, return_all)
+                else:
+                    compute_neigh_lists(xyz_ti, master_neigh_list, samples_per_dt, cutoff, test_boundary, return_all)
+    if return_array:
+        print " "
+        return master_neigh_list
+    else:
+        with open(save_name, 'w') as xyzFile:
+            print "\nWriting neighbourlists to file:"
+            print save_name
+            for single_list in master_neigh_list:
+                out_string = ""
+                for number in single_list:
+                    out_string += str(number) + " "
+                xyzFile.write(out_string[:-1] + "\n")
 
-def compute_neigh_lists(xyz, master_neigh_list, samples_per_dt, cutoff, test_boundary=True):
+def compute_neigh_arrays(xyz, master_neigh_list, cutoff, return_all=False):
+    if return_all:
+        if not master_neigh_list:
+            print "Creating neighbour lists from all atoms per timestep!"
+        for i in range(xyz.shape[0]):
+            x,y,z = xyz[i,:]
+            # Center coordinate system around chosen atom:
+            xyz_c = xyz.copy()
+            xyz_c[:,0] -= x
+            xyz_c[:,1] -= y
+            xyz_c[:,2] -= z
+            # Chosen coordinates are now: x,y,z = 0,0,0
+            master_neigh_list.append(xyz_c)
+    else:
+        if not master_neigh_list:
+            print "Creating neighbour lists for atom i!"
+        x,y,z = xyz[0,:]
+        # Center coordinate system around chosen atom i=0:
+        xyz_c = xyz.copy()
+        xyz_c[:,0] -= x
+        xyz_c[:,1] -= y
+        xyz_c[:,2] -= z
+        # Chosen coordinates are now: x,y,z = 0,0,0
+        master_neigh_list.append(xyz_c)
+
+def compute_neigh_lists(xyz, master_neigh_list, samples_per_dt, cutoff, test_boundary=True, return_all=False):
     """
     Tip: Use at least 20x20x20 unit cells with i.e. Stillinger-Weber!
     """
@@ -212,10 +252,13 @@ def compute_neigh_lists(xyz, master_neigh_list, samples_per_dt, cutoff, test_bou
     # Set limit for distance to any wall x,y,z-direction
     r_max = xyz.max() - cutoff*1.1
     r_min = xyz.min() + cutoff*1.1
-    while True and i_tot_checked < tot_neig*50: # Stop computation eventually if too small system is given as input
+    while i_tot_checked < tot_neig*50: # Stop computation eventually if too small system is given as input
         i_tot_checked += 1
-        rand_atom = np.random.randint(N)
-        x,y,z = xyz[rand_atom,:]
+        if return_all:
+            chosen_atom = i # Pick all atoms, one by one!
+        else:
+            chosen_atom = np.random.randint(N) # Pick atoms at random
+        x,y,z = xyz[chosen_atom,:]
         if test_boundary:
             if x < r_min or x > r_max or y < r_min or y > r_max or z < r_min or z > r_max:
                 # print "Too close",x,y,z
@@ -228,11 +271,14 @@ def compute_neigh_lists(xyz, master_neigh_list, samples_per_dt, cutoff, test_bou
         xyz_copy[:,2] -= z
         # Chosen coordinates are now: x,y,z = 0,0,0
         r = np.linalg.norm(xyz_copy, axis=1)
-        # Find neighbours within cutoff
-        r_less  = (r < cutoff)
+        # Find neighbours within cutoff unless "return all"
+        if return_all:
+            r_less = np.ones(tot_neig, dtype=bool) # All set to True
+        else:
+            r_less = (r < cutoff)
         nn_list = []
         for j,neigh_bool in enumerate(r_less):
-            if neigh_bool and j != rand_atom: # Inside cutoff and "not itself"
+            if neigh_bool and j != chosen_atom: # Inside cutoff and "not itself"
                 nn_list.append(xyz_copy[j,0])
                 nn_list.append(xyz_copy[j,1])
                 nn_list.append(xyz_copy[j,2])
@@ -240,6 +286,8 @@ def compute_neigh_lists(xyz, master_neigh_list, samples_per_dt, cutoff, test_bou
         nn_list.append("nan") # This file does not containt pot. energy. So if wrongly read, give NAN
         master_neigh_list.append(nn_list)
         if i == tot_neig:
+            # for i in master_neigh_list:
+            #     print np.array(i),"\n"
             break
 
 

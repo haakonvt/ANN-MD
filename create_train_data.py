@@ -125,10 +125,10 @@ def PES_Stillinger_Weber(xyz_i):
         else:
             return 0.0
     # Sum up two body terms
-    U2_sum  = np.sum(U2)/2 # Each pair share this energy. Contribute half to each
+    U2_sum  = np.sum(U2) / 2.0 # Each pair share this energy. Contribute half to each
     if isnan(U2_sum):
-        U2_sum = U2_serial(r, rc)
-        print "\nNaN gotten, re-computing with serial code. U2 = ", U2_sum
+        U2_sum = U2_serial(r, rc) / 2.0
+        # print "\nNaN gotten, re-computing with serial code. U2 = ", U2_sum
     # Need a double sum to find three body terms
     U3_sum = 0.0
     for j in range(N): # i < j
@@ -457,6 +457,9 @@ def NeighListDataToSymmToFile(open_filename, save_filename, size):
             for line in lammps_file:
                 size +=1
             save_filename += "%d.txt" %size
+    if size == 0:
+        print "Length of file is zero! Fix and run again!\nExiting!"
+        sys.exit(0)
     with open(open_filename, 'r') as lammps_file:
         """
         File looks like this
@@ -466,9 +469,6 @@ def NeighListDataToSymmToFile(open_filename, save_filename, size):
         G_funcs, nmbr_G = generate_symmfunc_input_Si_Behler()
         xTrain          = np.zeros((size, nmbr_G))
         for i,row in enumerate(lammps_file):
-            # if i < 10000:
-            #     continue
-            # i -= 10000
             if i >= size:
                 continue # Skip to the next row
             xyzr_i = np.array(row.split(), dtype=float)
@@ -557,11 +557,11 @@ if __name__ == '__main__':
     """
     # Based on random structures, fixed/variable number of neighbors
     dumpToFile         = False
-    dumpMultiple       = True
+    dumpMultiple       = False
 
     # Structures from SW run in lammps
     xyz_to_neigh_lists = False
-    dumpXYZ_file       = False # Own algo: "readXYZ_Files"
+    dumpXYZ_file       = True # Own algo: "readXYZ_Files"
 
     # Neig.lists from lammps with John-Anders algo
     dumpLammpsFile     = False
@@ -576,9 +576,9 @@ if __name__ == '__main__':
         Takes XYZ files from LAMMPS dump and makes neighbor lists
         """
         cutoff         = 3.77118 # Stillinger-Weber
-        samples_per_dt = 1
-        test_boundary = False   # Just use atoms whereever they are
-        file_path = "Important_data/TestNN/enfil_sw_3p.xyz"
+        samples_per_dt = "all"   # Integer value or "all"
+        test_boundary  = False   # Just use atoms wherever they are
+        file_path = "Important_data/TestNN/enfil_sw_4p.xyz"
         save_file = "Important_data/neigh_list_from_xyz.txt"
         readXYZ_Files(file_path, save_file, samples_per_dt, cutoff, test_boundary)
 
@@ -588,6 +588,7 @@ if __name__ == '__main__':
         """
         size          = "all" # should be <= rows in file!!!!
         open_filename = "Important_data/neigh_list_from_xyz.txt"
+        save_filename = "SW_train_xyz_%s.txt" %str(size)
         if size == "all":
             save_filename = "SW_train_xyz_"
         NeighListDataToSymmToFile(open_filename, save_filename, size)
@@ -641,7 +642,7 @@ if __name__ == '__main__':
     if dumpMultiple:
         size = 2500 # PER single value in neigh_list
         # neigh_list = [4]*2 + [5]*6 + [6]*13 + [7]*14 + [8]*9 + [9]*3 + [10] # len: 48
-        neigh_list = [1, 2]
+        neigh_list = [2,3]
         t0_tot = timer()
         PES = PES_Stillinger_Weber
         for ID,neighbors in enumerate(neigh_list):
