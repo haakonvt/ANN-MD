@@ -4,14 +4,15 @@ import sys
 
 # Decide form of output from command line
 try:
-    c_or_latex = sys.argv[1]
+    output_choice = sys.argv[1]
 except:
     print "Usage:"
     print ">>> python sympy_diff.py latex"
     print ">>> python sympy_diff.py c"
+    print ">>> python sympy_diff.py python"
     sys.exit()
 
-if c_or_latex == "latex":
+if output_choice == "latex":
     # Symbols are defined in a way to make latex writing pretty
     out_c_code = False
     out_latex  = True
@@ -21,9 +22,12 @@ if c_or_latex == "latex":
     rc, rs, eta, lamb, zeta   = symbols(r'r_c, r_s, \eta, \lambda, \zeta', constant=True)
     rij, rik, rjk, rij_dot_ik = symbols(r'r_{ij}, r_{ik}, r_{jk}, rij_dot_ik', positive=True)
     cosTheta                  = symbols(r'\cos(\theta)')
-elif c_or_latex == "c":
+else:
     # Symbols are defined in a way to make c-code understandable
-    out_c_code = True
+    if output_choice == "c":
+        out_c_code = True
+    else:
+        out_c_code = False
     out_latex  = False
     xij, yij, zij             = symbols('xij, yij, zij')
     xik, yik, zik             = symbols('xik, yik, zik')
@@ -62,8 +66,10 @@ def print_G4_derivative(dG4d_var, var, out_c_code=False, out_latex=False):
     dG4d_var = dG4d_var.simplify()
     if out_c_code:
         print codegen(("dG4d"+str(var), dG4d_var), "C", "file")[0][1]
-    if out_latex:
+    elif out_latex:
         print latex(dG4d_var)
+    else:
+        print dG4d_var
 
 def print_G2_derivative(dG2d_var, var, out_c_code=False, out_latex=False):
     print "\n--------------------"
@@ -73,8 +79,10 @@ def print_G2_derivative(dG2d_var, var, out_c_code=False, out_latex=False):
     dG2d_var = dG2d_var.simplify()
     if out_c_code:
         print codegen(("dG2d"+str(var), dG2d_var), "C", "file")[0][1]
-    if out_latex:
+    elif out_latex:
         print latex(dG2d_var)
+    else:
+        print dG2d_var
 
 # Symbolic differentiation of G2
 dG2dXij = diff(G2, xij)
@@ -82,8 +90,8 @@ dG2dYij = diff(G2, yij)
 dG2dZij = diff(G2, zij)
 
 print_G2_derivative(dG2dXij, xij, out_c_code, out_latex)
-print_G2_derivative(dG2dYij, xij, out_c_code, out_latex)
-print_G2_derivative(dG2dZij, xij, out_c_code, out_latex)
+print_G2_derivative(dG2dYij, yij, out_c_code, out_latex)
+print_G2_derivative(dG2dZij, zij, out_c_code, out_latex)
 
 # Symbolic differentiation of G4
 dG4dXij = diff(G4, xij)
@@ -91,5 +99,5 @@ dG4dYij = diff(G4, yij)
 dG4dZij = diff(G4, zij)
 
 print_G4_derivative(dG4dXij, xij, out_c_code, out_latex)
-print_G4_derivative(dG4dYij, xij, out_c_code, out_latex)
-print_G4_derivative(dG4dZij, xij, out_c_code, out_latex)
+print_G4_derivative(dG4dYij, yij, out_c_code, out_latex)
+print_G4_derivative(dG4dZij, zij, out_c_code, out_latex)

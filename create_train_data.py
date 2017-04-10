@@ -490,7 +490,7 @@ def NeighListDataToSymmToFile(open_filename, save_filename, size):
     np.random.shuffle(dump_data) # Shuffle the rows of the data i.e. the symmetry vectors
     np.savetxt(save_filename, dump_data, delimiter=',')
     print "Saved symmetry vector training data to file:"
-    print '"%s"' %save_filename
+    print '"%s"\n' %save_filename
 
 def rotateXYZ(xyz, xr, yr, zr, angle="radians"):
     """
@@ -560,7 +560,7 @@ if __name__ == '__main__':
     dumpMultiple       = False
 
     # Structures from SW run in lammps
-    xyz_to_neigh_lists = False
+    xyz_to_neigh_lists = True
     dumpXYZ_file       = True # Own algo: "readXYZ_Files"
 
     # Neig.lists from lammps with John-Anders algo
@@ -578,8 +578,8 @@ if __name__ == '__main__':
         cutoff         = 3.77118 # Stillinger-Weber
         samples_per_dt = "all"   # Integer value or "all"
         test_boundary  = False   # Just use atoms wherever they are
-        file_path = "Important_data/TestNN/enfil_sw_4p.xyz"
-        save_file = "Important_data/neigh_list_from_xyz.txt"
+        file_path = "Important_data/TestNN/enfil_sw_2p.xyz"
+        save_file = "Important_data/neigh_list_from_xyz_2p.txt"
         readXYZ_Files(file_path, save_file, samples_per_dt, cutoff, test_boundary)
 
     if dumpXYZ_file:
@@ -587,7 +587,7 @@ if __name__ == '__main__':
         Takes neighbour lists and makes symmetry data / training data
         """
         size          = "all" # should be <= rows in file!!!!
-        open_filename = "Important_data/neigh_list_from_xyz.txt"
+        open_filename = "Important_data/neigh_list_from_xyz_2p.txt"
         save_filename = "SW_train_xyz_%s.txt" %str(size)
         if size == "all":
             save_filename = "SW_train_xyz_"

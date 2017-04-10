@@ -91,6 +91,7 @@ def findPathToData(find_tf_savefile=False):
             inp = int(raw_input(sentence))
         except:
             print "Try again, enter the number corresponding to the folder!"
+            continue
         if inp >= 0 and inp <= imax:
             break
         else:
@@ -161,14 +162,15 @@ def saveGraphFunc(sess, weights, biases, epoch, hiddenLayers, nNodes, save_dir, 
                 outFile.write(" ")
             outFile.write("\n")
 
-def readXYZ_Files(path_to_file, save_name, samples_per_dt=30, cutoff=3.77118, test_boundary=True, return_array=False):
+def readXYZ_Files(path_to_file, save_name, samples_per_dt=30, cutoff=3.77118,
+                  test_boundary=True, return_array=False):
     """
     Create the master list.
     Neighbouring atoms will vary, so I use a nested list
     """
     print "\nReading XYZ-file:"
     print '"%s"' %path_to_file
-    print "NB: This might take some minutes, depending on the number of time steps!"
+    print "NB: This might take some minutes, depending on the number of samples and time steps!"
     if samples_per_dt == "all":
         return_all     = True
     else:
@@ -210,7 +212,7 @@ def readXYZ_Files(path_to_file, save_name, samples_per_dt=30, cutoff=3.77118, te
     else:
         with open(save_name, 'w') as xyzFile:
             print "\nWriting neighbourlists to file:"
-            print save_name
+            print save_name + "\n"
             for single_list in master_neigh_list:
                 out_string = ""
                 for number in single_list:
@@ -252,13 +254,13 @@ def compute_neigh_lists(xyz, master_neigh_list, samples_per_dt, cutoff, test_bou
     # Set limit for distance to any wall x,y,z-direction
     r_max = xyz.max() - cutoff*1.1
     r_min = xyz.min() + cutoff*1.1
-    while i_tot_checked < tot_neig*50: # Stop computation eventually if too small system is given as input
-        i_tot_checked += 1
+    while i_tot_checked < tot_neig*10: # Stop computation eventually if too small system is given as input
         if return_all:
-            chosen_atom = i # Pick all atoms, one by one!
+            chosen_atom = i_tot_checked # Pick all atoms, one by one!
         else:
             chosen_atom = np.random.randint(N) # Pick atoms at random
         x,y,z = xyz[chosen_atom,:]
+        i_tot_checked += 1
         if test_boundary:
             if x < r_min or x > r_max or y < r_min or y > r_max or z < r_min or z > r_max:
                 # print "Too close",x,y,z
@@ -283,7 +285,7 @@ def compute_neigh_lists(xyz, master_neigh_list, samples_per_dt, cutoff, test_bou
                 nn_list.append(xyz_copy[j,1])
                 nn_list.append(xyz_copy[j,2])
                 nn_list.append(r[j])
-        nn_list.append("nan") # This file does not containt pot. energy. So if wrongly read, give NAN
+        nn_list.append("nan") # This file does not contain pot. energy. So if wrongly read, give NAN
         master_neigh_list.append(nn_list)
         if i == tot_neig:
             # for i in master_neigh_list:
