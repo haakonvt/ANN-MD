@@ -143,8 +143,8 @@ def example_Stillinger_Weber():
     tf.reset_default_graph()
 
     # number of samples
-    testSize  = int(raw_input("Test size? "))  # Should be 20-30 % of total train data
-    batchSize = int(raw_input("Batch size? "))   # Train size is determined by length of loaded file
+    testSize  = int(raw_input("Test size? "))   # Should be 20-30 % of total train data
+    batchSize = int(raw_input("Batch size? "))  # Train size is determined by length of loaded file
 
     # Set the learning rate. Standard value: 0.001
     learning_rate = 0.001
@@ -154,7 +154,7 @@ def example_Stillinger_Weber():
     output_vars = 1                 # Potential energy of atom i
 
     # Choice of loss- and activation function of the neural network
-    activation_function = "tanh"
+    activation_function = "sigmoid"
     loss_function       = "L2"
 
     # Create placeholders for the input and output variables

@@ -22,7 +22,7 @@ class loadFromFile:
             except Exception as e:
                 print "Could not load buffer. Error message follows:\n %s" %s
         else:
-            print 'Found no training data called:\n"%s"\"...exiting!' %filename
+            print 'Found no training data called:\n"%s"\n...exiting!' %filename
             sys.exit(0)
         if shuffle_rows:
             np.random.shuffle(self.buffer) # Shuffles rows only (not columns) by default *yey*

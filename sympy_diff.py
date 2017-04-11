@@ -51,6 +51,7 @@ G4    = 2**(1-zeta) \
                    xik**2+yik**2+zik**2+ \
                    xjk**2+yjk**2+zjk**2)) * fc_rij * fc_rik * fc_rjk
 
+
 def print_G4_derivative(dG4d_var, var, out_c_code=False, out_latex=False):
     print "\n--------------------"
     print "dG4/d%s " %str(var)

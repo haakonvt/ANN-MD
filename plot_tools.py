@@ -61,34 +61,59 @@ def plotEvolutionSWvsNN_N_diff_epochs(N, master_list):
 
 def plotForcesSWvsNN(F_SW, F_NN):
     F_SW = np.array(F_SW)
-    # F_NN = np.array(F_NN)
+    F_NN = np.array(F_NN)
+
+    F_SW_tot = np.linalg.norm(F_SW, axis=1)
+    F_NN_tot = np.linalg.norm(F_NN, axis=1)
 
     plt.suptitle("Forces SW vs NN")
 
-    plt.subplot(4,1,1)
-    plt.plot(np.linalg.norm(F_SW, axis=1), label="SW")
-    # plt.plot(np.linalg.norm(F_NN, axis=1), label="NN")
+    plt.subplot(4,2,1)
+    plt.plot(F_SW_tot, label="SW")
+    plt.plot(F_NN_tot, label="NN")
     plt.ylabel("Tot. force: |F|")
     plt.legend()
 
-    plt.subplot(4,1,2)
+    plt.subplot(4,2,2)
+    plt.plot((F_SW_tot-F_NN_tot), label="SW-NN")
+    plt.ylabel("Abs. error: Tot. force: |F|")
+    plt.legend()
+
+    plt.subplot(4,2,3)
     plt.plot(F_SW[:,0], label="SW")
-    # plt.plot(F_NN[:,0], label="NN")
+    plt.plot(F_NN[:,0], label="NN")
     plt.ylabel("Forces X")
     plt.legend()
 
-    plt.subplot(4,1,3)
+    plt.subplot(4,2,4)
+    plt.plot((F_SW[:,0]-F_NN[:,0]), label="SW-NN")
+    plt.ylabel("Abs. error: Forces X")
+    plt.legend()
+
+    plt.subplot(4,2,5)
     plt.plot(F_SW[:,1], label="SW")
-    # plt.plot(F_NN[:,1], label="NN")
+    plt.plot(F_NN[:,1], label="NN")
     plt.ylabel("Forces Y")
     plt.legend()
 
-    plt.subplot(4,1,4)
+    plt.subplot(4,2,6)
+    plt.plot((F_SW[:,1]-F_NN[:,1]), label="SW-NN")
+    plt.ylabel("Abs. error: Forces Y")
+    plt.legend()
+
+    plt.subplot(4,2,7)
     plt.plot(F_SW[:,2], label="SW")
-    # plt.plot(F_NN[:,2], label="NN")
+    plt.plot(F_NN[:,2], label="NN")
     plt.ylabel("Forces Z")
     plt.xlabel("Timestep")
     plt.legend()
+
+    plt.subplot(4,2,8)
+    plt.plot((F_SW[:,2]-F_NN[:,2]), label="SW-NN")
+    plt.ylabel("Abs. error: Forces Z")
+    plt.xlabel("Timestep")
+    plt.legend()
+
     plt.show()
 
 if __name__ == '__main__':

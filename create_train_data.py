@@ -135,21 +135,8 @@ def PES_Stillinger_Weber(xyz_i):
         for k in range(j+1,N): # i < j < k
             cos_theta = np.dot(xyz[j], xyz[k]) / (r[j]*r[k])
             U3_sum   += U3(r[j], r[k], cos_theta)
-    """
-    # Total system energy:
-    xyz = np.insert(xyz,0,np.zeros(3),axis=0) # Add our 0,0,0 atom
-    for i in range(N+1):
-        for j in range(i+1,N+1): # i < j
-            for k in range(j+1,N+1): # i < j < k
-                xyz_j = xyz[j]-xyz[i]
-                xyz_k = xyz[k]-xyz[i]
-                rij   = np.linalg.norm(xyz_j)
-                rik   = np.linalg.norm(xyz_k)
-                cos_theta = np.dot(xyz_j, xyz_k) / (rij*rik)
-                U3_sum   += U3(rij, rik, cos_theta)
-    """
     U3_sum /= 3 # Each triplet share this energy. Contribute a third to each
-    return U3_sum + U2_sum
+    return U3_sum*3 + U2_sum*2
 
 def createTrainData(size, neighbors, PES, verbose=False):
     if PES == PES_Stillinger_Weber:
@@ -571,6 +558,7 @@ if __name__ == '__main__':
     testLammps       = False
     testClass        = False
 
+    n_atoms = 3
     if xyz_to_neigh_lists:
         """
         Takes XYZ files from LAMMPS dump and makes neighbor lists
@@ -578,8 +566,8 @@ if __name__ == '__main__':
         cutoff         = 3.77118 # Stillinger-Weber
         samples_per_dt = "all"   # Integer value or "all"
         test_boundary  = False   # Just use atoms wherever they are
-        file_path = "Important_data/TestNN/enfil_sw_2p.xyz"
-        save_file = "Important_data/neigh_list_from_xyz_2p.txt"
+        file_path = "Important_data/TestNN/enfil_sw_%sp.xyz" %n_atoms
+        save_file = "Important_data/neigh_list_from_xyz_%sp.txt" %n_atoms
         readXYZ_Files(file_path, save_file, samples_per_dt, cutoff, test_boundary)
 
     if dumpXYZ_file:
@@ -587,10 +575,10 @@ if __name__ == '__main__':
         Takes neighbour lists and makes symmetry data / training data
         """
         size          = "all" # should be <= rows in file!!!!
-        open_filename = "Important_data/neigh_list_from_xyz_2p.txt"
+        open_filename = "Important_data/neigh_list_from_xyz_%sp.txt" %n_atoms
         save_filename = "SW_train_xyz_%s.txt" %str(size)
         if size == "all":
-            save_filename = "SW_train_xyz_"
+            save_filename = "SW_train_xyz_%sp_" %n_atoms
         NeighListDataToSymmToFile(open_filename, save_filename, size)
 
     if testLammps:
@@ -606,8 +594,8 @@ if __name__ == '__main__':
     if dumpToFile:
         if True:
             # This is SW
-            size = 5000
-            neighbors = 2
+            size = 10000
+            neighbors = 1
             # filename = "stillinger-weber-symmetry-data.txt"
             filename  = "SW_train_rs_%s_n%s.txt" %(str(size), str(neighbors))
             print "When run directly (like now), this file dumps training data to file:"
@@ -618,7 +606,7 @@ if __name__ == '__main__':
             PES = PES_Stillinger_Weber
             t0 = timer()
             createTrainDataDump(size, neighbors, PES, filename, \
-                                only_concatenate=concatenateFiles, verbose=True)
+                                only_concatenate=False, verbose=True)
             t1 = timer() - t0
             print "\nComputation took: %.2f seconds" %t1
         else:
@@ -640,9 +628,9 @@ if __name__ == '__main__':
             print "\nComputation took: %.2f seconds" %t1
 
     if dumpMultiple:
-        size = 2500 # PER single value in neigh_list
+        size = 5000 # PER single value in neigh_list
         # neigh_list = [4]*2 + [5]*6 + [6]*13 + [7]*14 + [8]*9 + [9]*3 + [10] # len: 48
-        neigh_list = [2,3]
+        neigh_list = [1,2,2]
         t0_tot = timer()
         PES = PES_Stillinger_Weber
         for ID,neighbors in enumerate(neigh_list):
