@@ -16,7 +16,6 @@ import time
 import sys
 import os
 
-
 def potentialEnergyGenerator(xyz_N, PES):
     if len(xyz_N.shape) == 2: # This is just a single neighbor list
         return PES(xyz_N)
@@ -37,7 +36,7 @@ def potentialEnergyGenerator(xyz_N, PES):
 def potentialEnergyGeneratorSingleNeigList(xyz_i, PES):
     return PES(xyz_i)
 
-def createXYZ(r_min, r_max, size, neighbors=20, histogramPlot=False, verbose=False):
+def createXYZ(r_min, r_max, size, neighbors=7, histogramPlot=False, verbose=False):
     """
     # Input:  Size of train and test size + number of neighbors
     # Output: xyz-neighbors-matrix of size 'size'
@@ -125,18 +124,28 @@ def PES_Stillinger_Weber(xyz_i):
         else:
             return 0.0
     # Sum up two body terms
-    U2_sum  = np.sum(U2) / 2.0 # Each pair share this energy. Contribute half to each
+    U2_sum  = np.sum(U2) #/ 2.0 # Each pair share this energy. Contribute half to each
     if isnan(U2_sum):
-        U2_sum = U2_serial(r, rc) / 2.0
+        U2_sum = U2_serial(r, rc) #/ 2.0
         # print "\nNaN gotten, re-computing with serial code. U2 = ", U2_sum
     # Need a double sum to find three body terms
     U3_sum = 0.0
     for j in range(N): # i < j
+        v_rij = xyz[j] # Only depend on j
+        rij   = r[j]
         for k in range(j+1,N): # i < j < k
-            cos_theta = np.dot(xyz[j], xyz[k]) / (r[j]*r[k])
-            U3_sum   += U3(r[j], r[k], cos_theta)
-    U3_sum /= 3 # Each triplet share this energy. Contribute a third to each
-    return U3_sum*3 + U2_sum*2
+            v_rik = xyz[k]
+            v_rjk = xyz[j] - xyz[k]
+            rik   = r[k]
+            rjk   = np.linalg.norm(v_rjk)
+            cos_theta_jik = np.dot(v_rij,  v_rik) / (rij*rik)
+            cos_theta_ijk = np.dot(-v_rij, v_rjk) / (rij*rjk) # |rij| = |rji|
+            cos_theta_ikj = np.dot(-v_rik,-v_rjk) / (rik*rjk) # rjk_vec = -rkj_vec
+            U3_sum += U3(rij, rik, cos_theta_jik) \
+                    + U3(rij, rjk, cos_theta_ijk) \
+                    + U3(rik, rjk, cos_theta_ikj)
+    #U3_sum /= 3 # Each atom in triplet share this energy. Contribute a third to each
+    return U3_sum + U2_sum
 
 def createTrainData(size, neighbors, PES, verbose=False):
     if PES == PES_Stillinger_Weber:
@@ -544,11 +553,11 @@ if __name__ == '__main__':
     """
     # Based on random structures, fixed/variable number of neighbors
     dumpToFile         = False
-    dumpMultiple       = False
+    dumpMultiple       = True
 
     # Structures from SW run in lammps
-    xyz_to_neigh_lists = True
-    dumpXYZ_file       = True # Own algo: "readXYZ_Files"
+    xyz_to_neigh_lists = False
+    dumpXYZ_file       = False # Own algo: "readXYZ_Files"
 
     # Neig.lists from lammps with John-Anders algo
     dumpLammpsFile     = False
@@ -558,7 +567,8 @@ if __name__ == '__main__':
     testLammps       = False
     testClass        = False
 
-    n_atoms = 3
+    n_atoms    = 3
+    other_info = "" # i.e. "no_3_body"
     if xyz_to_neigh_lists:
         """
         Takes XYZ files from LAMMPS dump and makes neighbor lists
@@ -566,8 +576,8 @@ if __name__ == '__main__':
         cutoff         = 3.77118 # Stillinger-Weber
         samples_per_dt = "all"   # Integer value or "all"
         test_boundary  = False   # Just use atoms wherever they are
-        file_path = "Important_data/TestNN/enfil_sw_%sp.xyz" %n_atoms
-        save_file = "Important_data/neigh_list_from_xyz_%sp.txt" %n_atoms
+        file_path = "Important_data/TestNN/enfil_sw_%sp%s.xyz" %(n_atoms,other_info)
+        save_file = "Important_data/neigh_list_from_xyz_%sp%s.txt" %(n_atoms,other_info)
         readXYZ_Files(file_path, save_file, samples_per_dt, cutoff, test_boundary)
 
     if dumpXYZ_file:
@@ -575,10 +585,10 @@ if __name__ == '__main__':
         Takes neighbour lists and makes symmetry data / training data
         """
         size          = "all" # should be <= rows in file!!!!
-        open_filename = "Important_data/neigh_list_from_xyz_%sp.txt" %n_atoms
+        open_filename = "Important_data/neigh_list_from_xyz_%sp%s.txt" %(n_atoms,other_info)
         save_filename = "SW_train_xyz_%s.txt" %str(size)
         if size == "all":
-            save_filename = "SW_train_xyz_%sp_" %n_atoms
+            save_filename = "SW_train_xyz_%sp%s_" %(n_atoms,other_info)
         NeighListDataToSymmToFile(open_filename, save_filename, size)
 
     if testLammps:
@@ -628,9 +638,9 @@ if __name__ == '__main__':
             print "\nComputation took: %.2f seconds" %t1
 
     if dumpMultiple:
-        size = 5000 # PER single value in neigh_list
+        size = 2000 # PER single value in neigh_list
         # neigh_list = [4]*2 + [5]*6 + [6]*13 + [7]*14 + [8]*9 + [9]*3 + [10] # len: 48
-        neigh_list = [1,2,2]
+        neigh_list = [1,2,2,2]
         t0_tot = timer()
         PES = PES_Stillinger_Weber
         for ID,neighbors in enumerate(neigh_list):

@@ -86,19 +86,32 @@ def print_G2_derivative(dG2d_var, var, out_c_code=False, out_latex=False):
         print dG2d_var
 
 # Symbolic differentiation of G2
-dG2dXij = diff(G2, xij)
-dG2dYij = diff(G2, yij)
-dG2dZij = diff(G2, zij)
-
-print_G2_derivative(dG2dXij, xij, out_c_code, out_latex)
-print_G2_derivative(dG2dYij, yij, out_c_code, out_latex)
-print_G2_derivative(dG2dZij, zij, out_c_code, out_latex)
+# dG2dXij = diff(G2, xij)
+# dG2dYij = diff(G2, yij)
+# dG2dZij = diff(G2, zij)
+#
+# print_G2_derivative(dG2dXij, xij, out_c_code, out_latex)
+# print_G2_derivative(dG2dYij, yij, out_c_code, out_latex)
+# print_G2_derivative(dG2dZij, zij, out_c_code, out_latex)
 
 # Symbolic differentiation of G4
-dG4dXij = diff(G4, xij)
-dG4dYij = diff(G4, yij)
-dG4dZij = diff(G4, zij)
+# dG4dXij = diff(G4, xij)
+# dG4dYij = diff(G4, yij)
+# dG4dZij = diff(G4, zij)
+# dG4dXik = diff(G4, xik)
+# dG4dYik = diff(G4, yik)
+# dG4dZik = diff(G4, zik)
+#
+# print_G4_derivative(dG4dXij, xij, out_c_code, out_latex)
+# print_G4_derivative(dG4dYij, yij, out_c_code, out_latex)
+# print_G4_derivative(dG4dZij, zij, out_c_code, out_latex)
+# print_G4_derivative(dG4dXik, xik, out_c_code, out_latex)
+# print_G4_derivative(dG4dYik, yik, out_c_code, out_latex)
+# print_G4_derivative(dG4dZik, zik, out_c_code, out_latex)
 
-print_G4_derivative(dG4dXij, xij, out_c_code, out_latex)
-print_G4_derivative(dG4dYij, yij, out_c_code, out_latex)
-print_G4_derivative(dG4dZij, zij, out_c_code, out_latex)
+# Symbolic differentiation of U3 from Stillinger-Weber
+h_jik = eps*lamb*exp((g*sig)/(rij-a*sig)))*exp((g*sig)/(rik-a*sig))*(cos_theta_ijk-cos_0)**2
+h_ijk = 0
+h_ikj = 0
+U3 = h_jik + h_ijk + h_ikj
+print diff(U3,)

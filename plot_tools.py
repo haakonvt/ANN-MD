@@ -1,5 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
+import datetime # Making unique names for plots
+import glob
 
 def plotTestVsTrainLoss(save_dir, list_of_rmse_train, list_of_rmse_test):
     if not list_of_rmse_test or not list_of_rmse_train:
@@ -59,9 +61,9 @@ def plotEvolutionSWvsNN_N_diff_epochs(N, master_list):
         plt.legend()
     plt.show()
 
-def plotForcesSWvsNN(F_SW, F_NN):
-    F_SW = np.array(F_SW)
-    F_NN = np.array(F_NN)
+def plotForcesSWvsNN(F_SW, F_NN, show=True):
+    F_SW = np.array(F_SW, dtype=float)
+    F_NN = np.array(F_NN, dtype=float)
 
     F_SW_tot = np.linalg.norm(F_SW, axis=1)
     F_NN_tot = np.linalg.norm(F_NN, axis=1)
@@ -113,8 +115,33 @@ def plotForcesSWvsNN(F_SW, F_NN):
     plt.ylabel("Abs. error: Forces Z")
     plt.xlabel("Timestep")
     plt.legend()
+    # name = datetime.datetime.now().strftime("%H-%M-%S-%d-%m-%Y") + ".pdf"
+    # plt.savefig(name)
+    if show:
+        plt.show()
 
-    plt.show()
+def plotLAMMPSforces1atomEvo(show=False):
+    file_dir  = "Important_data/TestNN/Forces/"
+    file_list = glob.glob(file_dir+"dump_forces*")
+    count = 0
+    force_list = []
+    while True:
+        one_file = file_dir + "dump_forces%s" %count
+        if one_file in file_list:
+            with open(one_file, "r") as force_file:
+                for i,line in enumerate(force_file):
+                    if i == 9:
+                        line = line.split()
+                        force_list.append(line)
+                        break
+            count += 1 # Go to next file
+        else:
+            break
+    if show:
+        plotForcesSWvsNN(force_list, [])
+    else:
+        return force_list[:-1]
 
 if __name__ == '__main__':
+    # plotLAMMPSforces1atomEvo()
     plotTestVsTrainLoss()

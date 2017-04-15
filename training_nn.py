@@ -25,7 +25,7 @@ def train_neural_network(x, y, epochs, nNodes, hiddenLayers, batchSize, testSize
     # Number of cycles of feed-forward and backpropagation
     numberOfEpochs = epochs
     bestTrainLoss  = 1E100
-    p_imrove       = 1.2  # Write out how training is going after this improvment in loss
+    p_imrove       = 1.25  # Write out how training is going after this improvment in loss
     print_often    = False
     if saveFlag:
         datetime_stamp = timeStamp()
@@ -57,7 +57,7 @@ def train_neural_network(x, y, epochs, nNodes, hiddenLayers, batchSize, testSize
         sess.run(tf.global_variables_initializer())
 
         # Create a save-op: (keeps only last iteration, but also one per 30 min trained)
-        saver = tf.train.Saver(max_to_keep=1, keep_checkpoint_every_n_hours=0.5)
+        saver = tf.train.Saver(max_to_keep=2, keep_checkpoint_every_n_hours=0.5)
 
         # If loadPath specified, load a pre-trained net
         if loadPath: # If loadPath is not length zero
@@ -73,7 +73,7 @@ def train_neural_network(x, y, epochs, nNodes, hiddenLayers, batchSize, testSize
         all_data          = loadFromFile(testSize, filename, shuffle_rows=True)
         xTest, yTest      = all_data(testSize, return_test=True)
         xTrain, yTrain, _ = all_data(batchSize, shuffle=False) # Get next batch of data
-        train_size        = all_data.number_of_train_data() # Note that SUM(batch_size) = train_size
+        train_size        = all_data.number_of_train_data() # Note that SUM(all batch_size) = train_size
 
         # Loop over all epocs
         for epoch in range(0, numberOfEpochs):
@@ -82,12 +82,12 @@ def train_neural_network(x, y, epochs, nNodes, hiddenLayers, batchSize, testSize
 
             # Loop over all the train data set in batches
             while not epochIsDone:
-                # Loop through batches of the training set and adjust parameters
+                # Loop through batches of the training set and adjust parameters for each batch. This is "online learning".
                 _, batch_cost = sess.run([optimizer, cost], feed_dict={x: xTrain, y: yTrain})
                 avg_cost     += batch_cost / train_size
 
                 # Read new data from loaded training data file (to use next step, unless epoch done)
-                xTrain, yTrain, epochIsDone = all_data(batchSize, shuffle=True) # Get next batch of data
+                xTrain, yTrain, epochIsDone = all_data(batchSize, shuffle=True) # Get next batch of data. If last batch-->then shuffle
 
                 # If all training data has been seen "once" epoch is done
                 if epochIsDone:
@@ -99,7 +99,7 @@ def train_neural_network(x, y, epochs, nNodes, hiddenLayers, batchSize, testSize
                     # Print out performance after loss has decreased "p_improv" percent (or last epoch)
                     if bestTrainLoss-1E-14 > trainRMSE*p_imrove or epoch == numberOfEpochs-1:
                         if not print_often and trainRMSE < 0.008:
-                            p_imrove    = 1.015 # Write out progress more often
+                            p_imrove    = 1.015 # Write out progress more often at the end
                             print_often = True
                         bestTrainLoss = trainRMSE
                         sys.stdout.write('\r' + ' '*60) # White out line
