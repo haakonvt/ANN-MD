@@ -145,7 +145,8 @@ def PES_Stillinger_Weber(xyz_i):
                     + U3(rij, rjk, cos_theta_ijk) \
                     + U3(rik, rjk, cos_theta_ikj)
     #U3_sum /= 3 # Each atom in triplet share this energy. Contribute a third to each
-    return U3_sum + U2_sum
+    U_total = U3_sum/3.0 + U2_sum/2.0
+    return U_total
 
 def createTrainData(size, neighbors, PES, verbose=False):
     if PES == PES_Stillinger_Weber:
@@ -553,21 +554,21 @@ if __name__ == '__main__':
     """
     # Based on random structures, fixed/variable number of neighbors
     dumpToFile         = False
-    dumpMultiple       = True
+    dumpMultiple       = False
 
     # Structures from SW run in lammps
-    xyz_to_neigh_lists = False
-    dumpXYZ_file       = False # Own algo: "readXYZ_Files"
+    xyz_to_neigh_lists = True
+    dumpXYZ_file       = True # Own algo: "readXYZ_Files"
 
     # Neig.lists from lammps with John-Anders algo
     dumpLammpsFile     = False
 
     # Unit tests
-    testAngSymm      = False
-    testLammps       = False
-    testClass        = False
+    testAngSymm        = False
+    testLammps         = False
+    testClass          = False
 
-    n_atoms    = 3
+    n_atoms    = 2
     other_info = "" # i.e. "no_3_body"
     if xyz_to_neigh_lists:
         """

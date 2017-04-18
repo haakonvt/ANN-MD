@@ -1,12 +1,12 @@
-"""
-NOT FINISHED, DONT RUN!
-"""
-
 import numpy as np
+import glob, os
+from create_train_data import generate_symmfunc_input_Si_Behler
+from symmetry_transform import symmetryTransformBehler
 
 class neural_network():
     """
-    Loads and stores the neural network of choice
+    Loads and stores the neural network of choice in memory.
+    Can evaluate the network and return the derivative w.r.t. inputs.
     """
     def __init__(self, loadPath, act_func, ddx_act_f):
         node_w_list, node_biases, what_epoch = read_NN_from_file(loadPath)
@@ -37,12 +37,10 @@ class neural_network():
                 self.node_sum.append(out_layer) # Dont care about last sum because its the same as the final output (energy)!
                 vec_prev_layer = self.act_func(out_layer)
         return float(out_layer)
-    def nn_derivative(self, xyz):
+    def nn_derivative(self):
         """
         Essentially what is done during backpropagation, except we also need
         to differentiate symmetry functions with respect to cartesian coordinates.
-
-        NB: xyz need to contain neighbor coordinates only!
         """
         tot_layers = self.all_layers
         hdn_layers = self.hdn_layers
@@ -60,16 +58,20 @@ class neural_network():
         # Assume linear activation function used on input nodes:
         weights_trans = np.transpose(self.node_w_list[0])
         deriv_list[0] = np.dot(deriv_list[1], weights_trans)
-        dNNdG         = deriv_list[0].transpose()
+        dNNdG         = np.array(deriv_list[0].transpose())
         return dNNdG
-    def create_symvec_from_xyz(self, xyz, index):
+    def create_symvec_from_xyz(self, xyz):
         """
         XYZ is neighbor-coordinates only!
         """
-        symm_vec = symmetryTransformBehler(self.G_funcs)
+        symm_vec = symmetryTransformBehler(self.G_funcs, xyz)
         return symm_vec
     def what_epoch(self):
         return self.what_epoch
+    def nmbr_G(self):
+        return self.nmbr_G
+    def G_funcs(self):
+        return self.G_funcs
 
 
 def read_NN_from_file(loadPath):
