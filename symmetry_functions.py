@@ -65,9 +65,6 @@ def G4(xyz, rc, eta, zeta, lambda_c, cutoff=cutoff_cos):
     N         = len(r)
     r_cut     = cutoff(r,rc)
     summation = 0
-    # IDEA: Speed up double loop with numpy arrays (if possible)
-    # r_jk_array = np.zeros((N,N))
-    # r_jk_array = np.linalg.norm(xyz - xyz) ??? nowhere near finished
     for j in range(N):
         for k in range(N): # This double counts angles... as in the litterature
             if j == k:

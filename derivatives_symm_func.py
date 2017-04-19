@@ -57,8 +57,7 @@ def force_calculation(dNNdG_matrix, all_atoms):
         for i in range(3):
             # Calculating derivative of fingerprints of self atom w.r.t. coordinates of itself.
             sym_f_der = symmetry_func_derivative(selfindex, selfneighborindices, selfneighborpositions, selfindex, i)
-            # total_forces[selfindex, i] += np.dot(sym_f_der, self_dNNdG)
-            # print i, total_forces[selfindex, i], np.dot(sym_f_der, self_dNNdG)
+            total_forces[selfindex, i] += -np.dot(sym_f_der, self_dNNdG) # Minus sign since F = -d/dx V
 
             # Calculating derivative of fingerprints of neighbor atom w.r.t. coordinates of self atom.
             for neigh_index in selfneighborindices:
@@ -69,10 +68,7 @@ def force_calculation(dNNdG_matrix, all_atoms):
 
                 # for calculating derivatives of fingerprints, summation runs over neighboring atoms
                 sym_f_der = symmetry_func_derivative(neigh_index, nneighborindices, neighborpositions, selfindex, i)
-                total_forces[selfindex, i] += np.dot(sym_f_der, neigh_dNNdG)
-            # print "---", i, neigh_index, total_forces[selfindex, i], np.dot(sym_f_der, neigh_dNNdG)
-            # print " "
-            # raw_input("AAASSDDFF")
+                total_forces[selfindex, i] += -np.dot(sym_f_der, neigh_dNNdG)
     return total_forces
 
 
@@ -107,132 +103,22 @@ def symmetry_func_derivative(index, neighborindices, neighborpositions, m, l):
     for i in range(nmbr_G):
         which_symm = G_funcs[i][0]
         if which_symm == 2:
-            _, eta, rc, rs = G_funcs[i]
-            eta, rc, rs = float(eta), float(rc), float(rc)
-            ddx_symm_val = calculate_ddx_G2(neighborindices, neighborpositions, eta, rc, rs, index, m, l)
+            _, eta, rc, rs  = G_funcs[i]
+            eta, rc, rs     = float(eta), float(rc), float(rs)
+            ddx_symm_vec[i] = calculate_ddx_G2(neighborindices,
+                                              neighborpositions,
+                                              eta, rc, rs, index, m, l)
         elif which_symm == 4:
             _, eta, rc, zeta, lamb = G_funcs[i]
-            ddx_symm_val = calculate_ddx_G4(neighborindices, neighborpositions, lamb, zeta, eta, rc, index, m, l)
+            eta, rc, zeta, lamb    = float(eta), float(rc), float(zeta), float(lamb)
+            ddx_symm_vec[i]        = calculate_ddx_G4(neighborindices,
+                                                      neighborpositions,
+                                                      lamb, zeta, eta, rc, index, m, l)
         else:
             print "Only use symmetry functions G2 or G4! Exiting!"
             sys.exit(0)
-        ddx_symm_vec[i] = ddx_symm_val
     return ddx_symm_vec
-                    #   (neighborindices, neighborpositions, lamb , zeta, eta, rc    , index, m, l)
-def calculate_ddx_G4(neighborindices, neighborpositions, gamma, zeta, eta, cutoff, i    , m, l):
-    return 0.0
-    """Calculates coordinate derivative of G4 symmetry function for atom at
-    index i and position Ri with respect to coordinate x_{l} of atom index m.
 
-    See Eq. 13d of the supplementary information of Khorshidi, Peterson,
-    CPC(2016).
-
-    Parameters
-    ----------
-    neighborindices : list of int
-        List of int of neighboring atoms.
-    neighborsymbols : list of str
-        List of symbols of neighboring atoms.
-    neighborpositions : list of list of float
-        List of Cartesian atomic positions of neighboring atoms.
-    G_elements : list of str
-        A list of two members, each member is the chemical species of one of
-        the neighboring atoms forming the triangle with the center atom.
-    gamma : float
-        Parameter of Behler symmetry functions.
-    zeta : float
-        Parameter of Behler symmetry functions.
-    eta : float
-        Parameter of Behler symmetry functions.
-    cutoff : dict
-        Cutoff function, typically from amp.descriptor.cutoffs. Should be also
-        formatted as a dictionary by todict method, e.g.
-        cutoff=Cosine(6.5).todict()
-    i : int
-        Index of the center atom.
-    Ri : list
-        Position of the center atom. Should be fed as a list of three floats.
-    m : int
-        Index of the atom force is acting on.
-    l : int
-        Direction of force.
-    fortran : bool
-        If True, will use the fortran subroutines, else will not.
-
-    Returns
-    -------
-    ridge : float
-        Coordinate derivative of G4 symmetry function for atom at index i and
-        position Ri with respect to coordinate x_{l} of atom index m.
-    """
-    # Rc = cutoff['kwargs']['Rc']
-    # cutoff_fxn = dict2cutoff(cutoff)
-    # ridge = 0.
-    # # number of neighboring atoms
-    # counts = range(len(neighborpositions))
-    # for j in counts:
-    #     for k in counts[(j + 1):]:
-    #         els = sorted([neighborsymbols[j], neighborsymbols[k]])
-    #         if els != G_elements:
-    #             continue
-    #         Rj = neighborpositions[j]
-    #         Rk = neighborpositions[k]
-    #         Rij_vector = neighborpositions[j] - Ri
-    #         Rij = np.linalg.norm(Rij_vector)
-    #         Rik_vector = neighborpositions[k] - Ri
-    #         Rik = np.linalg.norm(Rik_vector)
-    #         Rjk_vector = neighborpositions[k] - neighborpositions[j]
-    #         Rjk = np.linalg.norm(Rjk_vector)
-    #         cos_theta_ijk = np.dot(Rij_vector, Rik_vector) / Rij / Rik
-    #         c1 = (1. + gamma * cos_theta_ijk)
-    #
-    #         _Rij = dict(Rij=Rij)
-    #         _Rik = dict(Rij=Rik)
-    #         _Rjk = dict(Rij=Rjk)
-    #         if cutoff['name'] == 'Polynomial':
-    #             _Rij['gamma'] = cutoff['kwargs']['gamma']
-    #             _Rik['gamma'] = cutoff['kwargs']['gamma']
-    #             _Rjk['gamma'] = cutoff['kwargs']['gamma']
-    #
-    #         fcRij = cutoff_fxn(**_Rij)
-    #         fcRik = cutoff_fxn(**_Rik)
-    #         fcRjk = cutoff_fxn(**_Rjk)
-    #         if zeta == 1:
-    #             term1 = \
-    #                 np.exp(- eta * (Rij ** 2. + Rik ** 2. + Rjk ** 2.) /
-    #                        (Rc ** 2.))
-    #         else:
-    #             term1 = c1 ** (zeta - 1.) * \
-    #                 np.exp(- eta * (Rij ** 2. + Rik ** 2. + Rjk ** 2.) /
-    #                        (Rc ** 2.))
-    #         term2 = 0.
-    #         fcRijfcRikfcRjk = fcRij * fcRik * fcRjk
-    #         dCosthetadRml = dCos_theta_ijk_dR_ml(i,
-    #                                              neighborindices[j],
-    #                                              neighborindices[k],
-    #                                              Ri, Rj,
-    #                                              Rk, m, l)
-    #         if dCosthetadRml != 0:
-    #             term2 += gamma * zeta * dCosthetadRml
-    #         dRijdRml = dRij_dRml(i, neighborindices[j], Ri, Rj, m, l)
-    #         if dRijdRml != 0:
-    #             term2 += -2. * c1 * eta * Rij * dRijdRml / (Rc ** 2.)
-    #         dRikdRml = dRij_dRml(i, neighborindices[k], Ri, Rk, m, l)
-    #         if dRikdRml != 0:
-    #             term2 += -2. * c1 * eta * Rik * dRikdRml / (Rc ** 2.)
-    #         dRjkdRml = dRij_dRml(neighborindices[j],
-    #                              neighborindices[k],
-    #                              Rj, Rk, m, l)
-    #         if dRjkdRml != 0:
-    #             term2 += -2. * c1 * eta * Rjk * dRjkdRml / (Rc ** 2.)
-    #         term3 = fcRijfcRikfcRjk * term2
-    #         term4 = cutoff_fxn.prime(**_Rij) * dRijdRml * fcRik * fcRjk
-    #         term5 = fcRij * cutoff_fxn.prime(**_Rik) * dRikdRml * fcRjk
-    #         term6 = fcRij * fcRik * cutoff_fxn.prime(**_Rjk) * dRjkdRml
-    #
-    #         ridge += term1 * (term3 + c1 * (term4 + term5 + term6))
-    #     ridge *= 2. ** (1. - zeta)
-    #     return ridge
 
 def calculate_ddx_G2(neighborindices, neighborpositions, eta, Rc, Rs, i, m, l):
     """
@@ -267,7 +153,7 @@ def calculate_ddx_G2(neighborindices, neighborpositions, eta, Rc, Rs, i, m, l):
 
     Returns
     -------
-    ridge : float
+    value : float
         Coordinate derivative of G2 symmetry function for atom at index a and
         position Ri with respect to coordinate x_{l} of atom index m.
     """
@@ -286,7 +172,228 @@ def calculate_ddx_G2(neighborindices, neighborpositions, eta, Rc, Rs, i, m, l):
             Rij    = np.linalg.norm(Rj - Ri) # Ri = 0,0,0, but still written for clarity
             term   = -2.0*eta*(Rij-Rs) * cutoff_func(Rij, Rc) + ddx_cutoff_func(Rij, Rc)
             value += exp(-eta*(Rij-Rs)**2) * term * dRijdRml
+        """print "AMP value:", value
+        # Vectors of x,y,z-coordinates for neighbours
+        xij = neighborpositions[j,l]
+        # yij = neighborpositions[j,1]
+        # zij = neighborpositions[j,2]
+        rij    = np.linalg.norm(Rj - Ri) # Ri = 0,0,0, but still written for clarity
+        # rij   = np.linalg.norm((xij, yij, zij)) # Neighbour distance
+        term = (eta*Rc*(rij - Rs)*(cos(pi*rij/Rc) + 1.0) + 0.5*pi*sin(pi*rij/Rc)) \
+               * exp(-eta*(rij - Rs)**2)/(Rc*rij)
+        Fx = -1.0*(xij * term)
+        # Fy = -1.0*(yij * term)
+        # Fz = -1.0*(zij * term)
+        print "OWN Fxyz :", -Fx
+        # print "OWN Fy   :", -Fy
+        # print "OWN Fz   :", -Fz
+        raw_input("\n\n########\n")
+        # return np.array([Fx, Fy, Fz]) # Minus sign comes from F = -d/dx V"""
     return value
+
+
+def calculate_ddx_G4(neighborindices, neighborpositions, lamb, zeta, eta, cutoff, i, m, l):
+    """Calculates coordinate derivative of G4 symmetry function for atom at
+    index i and position Ri with respect to coordinate x_{l} of atom index m.
+
+    See Eq. 13d of the supplementary information of Khorshidi, Peterson,
+    CPC(2016).
+
+    Parameters
+    ----------
+    neighborindices : list of int
+        List of int of neighboring atoms.
+    neighborpositions : list of list of float
+        List of Cartesian atomic positions of neighboring atoms.
+    lamb : float
+        Parameter of Behler symmetry functions.
+    zeta : float
+        Parameter of Behler symmetry functions.
+    eta : float
+        Parameter of Behler symmetry functions.
+    cutoff : dict
+        Cutoff function, typically from amp.descriptor.cutoffs. Should be also
+        formatted as a dictionary by todict method, e.g.
+        cutoff=Cosine(6.5).todict()
+    i : int
+        Index of the center atom.
+    Ri : numpy array
+        Position of the center atom.
+    m : int
+        Index of the atom force is acting on.
+    l : int
+        Direction of force.
+
+    Returns
+    -------
+    value : float
+        Coordinate derivative of G4 symmetry function for atom at index i and
+        position Ri with respect to coordinate x_{l} of atom index m.
+    """
+    Ri              = neighborpositions[i] # This also contains xyz of the atom we are inspecting
+    Rc              = cutoff
+    cutoff_func     = cutoff_cos
+    ddx_cutoff_func = ddx_cutoff_cos
+    value           = 0.0
+    # number of neighboring atoms
+    # counts = range(len(neighborpositions))
+    for jj,j in enumerate(neighborindices): # J = index of atom j, jj = index of j in neigh.indices
+        for k in neighborindices:#[jj+1:]:
+            if j == k:
+                continue
+            Rj = neighborpositions[j]
+            Rk = neighborpositions[k]
+            Rij_vector = neighborpositions[j] - Ri
+            Rij = np.linalg.norm(Rij_vector)
+            Rik_vector = neighborpositions[k] - Ri
+            Rik = np.linalg.norm(Rik_vector)
+            Rjk_vector = neighborpositions[k] - neighborpositions[j]
+            Rjk = np.linalg.norm(Rjk_vector)
+            cos_theta_ijk = np.dot(Rij_vector, Rik_vector) / (Rij * Rik)
+            c1 = (1.0 + lamb * cos_theta_ijk)
+
+            fcRij = cutoff_func(Rij, Rc)
+            fcRik = cutoff_func(Rik, Rc)
+            fcRjk = cutoff_func(Rjk, Rc)
+            if zeta == 1:
+                term1 = exp(- eta * (Rij ** 2 + Rik ** 2 + Rjk ** 2))
+            else:
+                term1 = c1 ** (zeta - 1.0) * \
+                    exp(- eta * (Rij ** 2 + Rik ** 2 + Rjk ** 2))
+            term2 = 0.0
+            fcRijfcRikfcRjk = fcRij * fcRik * fcRjk
+            dCosthetadRml   = dCos_theta_ijk_dR_ml(i, j, k, Ri, Rj, Rk, m, l)
+            if dCosthetadRml != 0:
+                term2 += lamb * zeta * dCosthetadRml
+            dRijdRml = dRij_dRml(i, j, Ri, Rj, m, l)
+            if dRijdRml != 0:
+                term2 += -2. * c1 * eta * Rij * dRijdRml
+            dRikdRml = dRij_dRml(i, k, Ri, Rk, m, l)
+            if dRikdRml != 0:
+                term2 += -2. * c1 * eta * Rik * dRikdRml
+            dRjkdRml = dRij_dRml(j, k, Rj, Rk, m, l)
+            if dRjkdRml != 0:
+                term2 += -2. * c1 * eta * Rjk * dRjkdRml
+            term3 = fcRijfcRikfcRjk * term2
+            term4 = ddx_cutoff_func(Rij, Rc) * dRijdRml * fcRik * fcRjk
+            term5 = fcRij * ddx_cutoff_func(Rik, Rc) * dRikdRml * fcRjk
+            term6 = fcRij * fcRik * ddx_cutoff_func(Rjk, Rc) * dRjkdRml
+
+            value += term1 * (term3 + c1 * (term4 + term5 + term6))
+        value *= 2. ** (1. - zeta)
+        return value
+
+
+def dCos_theta_ijk_dR_ml(i, j, k, Ri, Rj, Rk, m, l):
+    """Returns the derivative of Cos(theta_{ijk}) with respect to
+    x_{l} of atomic index m.
+
+    See Eq. 14f of the supplementary information of Khorshidi, Peterson,
+    CPC(2016).
+
+    Parameters
+    ----------
+    i : int
+        Index of the center atom.
+    j : int
+        Index of the first atom.
+    k : int
+        Index of the second atom.
+    Ri : float
+        Position of the center atom.
+    Rj : float
+        Position of the first atom.
+    Rk : float
+        Position of the second atom.
+    m : int
+        Index of the atom force is acting on.
+    l : int
+        Direction of force.
+
+    Returns
+    -------
+    dCos_theta_ijk_dR_ml : float
+        Derivative of Cos(theta_{ijk}) with respect to x_{l} of atomic index m.
+    """
+    Rij_vector = Rj - Ri
+    Rij = np.linalg.norm(Rij_vector)
+    Rik_vector = Rk - Ri
+    Rik = np.linalg.norm(Rik_vector)
+    dCos_theta_ijk_dR_ml = 0
+
+    dRijdRml = dRij_dRml_vector(i, j, m, l)
+    if np.array(dRijdRml).any() != 0:
+        dCos_theta_ijk_dR_ml += np.dot(dRijdRml, Rik_vector) / (Rij * Rik)
+
+    dRikdRml = dRij_dRml_vector(i, k, m, l)
+    if np.array(dRikdRml).any() != 0:
+        dCos_theta_ijk_dR_ml += np.dot(Rij_vector, dRikdRml) / (Rij * Rik)
+
+    dRijdRml = dRij_dRml(i, j, Ri, Rj, m, l)
+    if dRijdRml != 0:
+        dCos_theta_ijk_dR_ml += - np.dot(Rij_vector, Rik_vector) * dRijdRml / ((Rij ** 2.) * Rik)
+
+    dRikdRml = dRij_dRml(i, k, Ri, Rk, m, l)
+    if dRikdRml != 0:
+        dCos_theta_ijk_dR_ml += - np.dot(Rij_vector, Rik_vector) * dRikdRml / (Rij * (Rik ** 2.))
+    return dCos_theta_ijk_dR_ml
+
+
+def dRij_dRml_vector(i, j, m, l):
+    """Returns the derivative of the position vector R_{ij} with respect to
+    x_{l} of itomic index m.
+
+    See Eq. 14d of the supplementary information of Khorshidi, Peterson,
+    CPC(2016).
+
+    Parameters
+    ----------
+    i : int
+        Index of the first atom.
+    j : int
+        Index of the second atom.
+    m : int
+        Index of the atom force is acting on.
+    l : int
+        Direction of force.
+
+    Returns
+    -------
+    list of float
+        The derivative of the position vector R_{ij} with respect to x_{l} of
+        atomic index m.
+    """
+    if (m != i) and (m != j):
+        return [0, 0, 0]
+    else:
+        dRij_dRml_vector = [None, None, None]
+        c1 = kronecker_delta(m, j) - kronecker_delta(m, i)
+        dRij_dRml_vector[0] = c1 * kronecker_delta(0, l)
+        dRij_dRml_vector[1] = c1 * kronecker_delta(1, l)
+        dRij_dRml_vector[2] = c1 * kronecker_delta(2, l)
+        return dRij_dRml_vector
+
+
+def kronecker_delta(i, j):
+    """Kronecker delta function.
+
+    Parameters
+    ----------
+    i : int
+        First index of Kronecker delta.
+    j : int
+        Second index of Kronecker delta.
+
+    Returns
+    -------
+    int
+        The value of the Kronecker delta.
+    """
+    if i == j:
+        return 1
+    else:
+        return 0
+
 
 def ddx_cutoff_cos(Rij, Rc):
     """
@@ -305,7 +412,7 @@ def ddx_cutoff_cos(Rij, Rc):
     if Rij > Rc:
         return 0.
     else:
-        return -0.5 * pi / Rc * sin(pi * Rij / Rc)
+        return (-0.5 * pi / Rc) * sin(pi * Rij / Rc)
 
 def dRij_dRml(i, j, Ri, Rj, m, l):
     """Returns the derivative of the norm of position vector R_{ij} with
@@ -333,9 +440,9 @@ def dRij_dRml(i, j, Ri, Rj, m, l):
         x_{l} of atomic index m.
     """
     Rij = np.linalg.norm(Rj - Ri)
-    if m == i and i != j:  # i != j is necessary for periodic systems
+    if m == i:
         dRij_dRml = -(Rj[l] - Ri[l]) / Rij
-    elif m == j and i != j:
+    elif m == j:
         dRij_dRml = (Rj[l] - Ri[l]) / Rij
     else:
         dRij_dRml = 0

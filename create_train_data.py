@@ -88,7 +88,7 @@ def PES_Stillinger_Weber(xyz_i):
             [x4 y4 z4]]
     """
     xyz = xyz_i
-    r = np.linalg.norm(xyz,axis=1)
+    r = np.linalg.norm(xyz, axis=1)
     N = len(r) # Number of neighbors for atom i, which we are currently inspecting
 
     # A lot of definitions first
@@ -97,7 +97,7 @@ def PES_Stillinger_Weber(xyz_i):
     p = 4.
     q = 0.
     a = 1.8
-    l = 21.  # lambda
+    l = 21. # lambda
     g = 1.2 # gamma
     cos_tc = -1.0/3.0 # 109.47 deg
 
@@ -108,7 +108,7 @@ def PES_Stillinger_Weber(xyz_i):
     filterwarnings("ignore", category=RuntimeWarning) # U2 below can give NaN
     U2 = A*eps*(B*(sig/r)**p-(sig/r)**q) * np.exp(sig/(r-a*sig)) * rc
     filterwarnings("always", category=RuntimeWarning) # Turn warnings back on
-    def U2_serial(r_vec, r_cut): # Only use if U2 gives NaN
+    def U2_serial(r_vec, r_cut): # Slow, i.e. only use if U2 gives NaN
         U2_E = 0
         for r,rc in zip(r_vec,r_cut):
             if rc:
@@ -124,28 +124,20 @@ def PES_Stillinger_Weber(xyz_i):
         else:
             return 0.0
     # Sum up two body terms
-    U2_sum  = np.sum(U2) #/ 2.0 # Each pair share this energy. Contribute half to each
-    if isnan(U2_sum):
+    U2_sum  = np.sum(U2) / 2.0 # Each pair share this energy. Contribute half to each
+    if isnan(U2_sum): # NaN gotten, re-computing with serial code. U2 = ", U2_sum
         U2_sum = U2_serial(r, rc) #/ 2.0
-        # print "\nNaN gotten, re-computing with serial code. U2 = ", U2_sum
     # Need a double sum to find three body terms
     U3_sum = 0.0
-    for j in range(N): # i < j
+    for j in range(N): # j != i
         v_rij = xyz[j] # Only depend on j
         rij   = r[j]
         for k in range(j+1,N): # i < j < k
             v_rik = xyz[k]
-            v_rjk = xyz[j] - xyz[k]
             rik   = r[k]
-            rjk   = np.linalg.norm(v_rjk)
             cos_theta_jik = np.dot(v_rij,  v_rik) / (rij*rik)
-            cos_theta_ijk = np.dot(-v_rij, v_rjk) / (rij*rjk) # |rij| = |rji|
-            cos_theta_ikj = np.dot(-v_rik,-v_rjk) / (rik*rjk) # rjk_vec = -rkj_vec
-            U3_sum += U3(rij, rik, cos_theta_jik) \
-                    + U3(rij, rjk, cos_theta_ijk) \
-                    + U3(rik, rjk, cos_theta_ikj)
-    #U3_sum /= 3 # Each atom in triplet share this energy. Contribute a third to each
-    U_total = U3_sum/3.0 + U2_sum/2.0
+            U3_sum += U3(rij, rik, cos_theta_jik)
+    U_total = U3_sum + U2_sum/2.0
     return U_total
 
 def createTrainData(size, neighbors, PES, verbose=False):
@@ -568,7 +560,7 @@ if __name__ == '__main__':
     testLammps         = False
     testClass          = False
 
-    n_atoms    = 2
+    n_atoms    = 3
     other_info = "" # i.e. "no_3_body"
     if xyz_to_neigh_lists:
         """
@@ -605,8 +597,8 @@ if __name__ == '__main__':
     if dumpToFile:
         if True:
             # This is SW
-            size = 10000
-            neighbors = 1
+            size = 50000
+            neighbors = 2
             # filename = "stillinger-weber-symmetry-data.txt"
             filename  = "SW_train_rs_%s_n%s.txt" %(str(size), str(neighbors))
             print "When run directly (like now), this file dumps training data to file:"

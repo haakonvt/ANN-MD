@@ -17,11 +17,22 @@ import tensorflow as tf
 from math import sqrt
 import numpy as np
 import sys,os
-
+import signal # Catch ctrl+c
 
 def train_neural_network(x, y, epochs, nNodes, hiddenLayers, batchSize, testSize,
                      learning_rate=0.001, loss_function="L2", activation_function="sigmoid",
                      potential_name=""):
+    # Allow for Ctrl+C to stop training early (and/or continue anyway)
+    global quit_now; quit_now = False
+    def signal_handler(signal, frame):
+        """Called when Ctrl+C is hit (SIGINT)"""
+        user_inp = raw_input("\nYou pressed Ctrl+C!\nEnter 'stop' to quit training, or hit enter to continue: ")
+        print "(Resuming or quitting takes some time, sit tight!)"
+        if user_inp in ["stop","Stop","STOP"]:
+            global quit_now
+            quit_now = True
+    signal.signal(signal.SIGINT, signal_handler)
+
     # Number of cycles of feed-forward and backpropagation
     numberOfEpochs = epochs
     bestTrainLoss  = 1E100
@@ -77,6 +88,8 @@ def train_neural_network(x, y, epochs, nNodes, hiddenLayers, batchSize, testSize
 
         # Loop over all epocs
         for epoch in range(0, numberOfEpochs):
+            if quit_now: # Changed to True if Ctrl+C is gotten from user
+                break
             avg_cost    = 0.    # Will contain the train cost
             epochIsDone = False # Mission: to stop when all training data has been seen once --> goto next epoch
 

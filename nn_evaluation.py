@@ -37,7 +37,7 @@ class neural_network():
                 self.node_sum.append(out_layer) # Dont care about last sum because its the same as the final output (energy)!
                 vec_prev_layer = self.act_func(out_layer)
         return float(out_layer)
-    def nn_derivative(self):
+    def derivative(self):
         """
         Essentially what is done during backpropagation, except we also need
         to differentiate symmetry functions with respect to cartesian coordinates.

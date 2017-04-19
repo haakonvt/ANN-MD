@@ -45,14 +45,12 @@ def test_structure_N_atom(neigh_cube, neural_network, plot_single=False, last_ti
 
         # Potential and forces computed by trained neural network:
         for i_atom in range(tot_nmbr_of_atoms):
-            xyz_atom_centered     = create_neighbour_list(xyz, i_atom, return_self=False)
-            symm_vec              = neural_network.create_symvec_from_xyz(xyz_atom_centered)
+            xyz_atom_centered       = create_neighbour_list(xyz, i_atom, return_self=False)
+            symm_vec                = neural_network.create_symvec_from_xyz(xyz_atom_centered)
             Ep_NN_all_atoms[i_atom] = neural_network(symm_vec) # Evaluates the NN
-            dNNdG_matrix[i_atom,:]  = neural_network.nn_derivative().reshape(nmbr_G,)
+            dNNdG_matrix[i_atom,:]  = neural_network.derivative().reshape(nmbr_G,)
         # Now that we have all Ep of all atoms, run force calculation:
         f_tot = force_calculation(dNNdG_matrix, xyz)
-        # print f_tot
-        # raw_input("\n")
 
         # Append all values to lists:
         Ep_SW_list.append(Ep_SW)
@@ -61,7 +59,7 @@ def test_structure_N_atom(neigh_cube, neural_network, plot_single=False, last_ti
         Fvec_NN_list.append(f_tot[0])         # Pick out first atom (for comparison)
 
         # Print out progress
-        if t%50 == 0 and t > 200:
+        if t%20 == 0 and t > 50:
             sys.stdout.write("\rTimestep: %d" %t)
             sys.stdout.flush()
     print " "
@@ -83,7 +81,7 @@ if __name__ == '__main__':
         print "- N is the different NN-versions to visualize"
         print "- M is the last timestep"
         sys.exit(0)
-    path_to_file = "Important_data/TestNN/enfil_sw_2p.xyz"
+    path_to_file = "Important_data/TestNN/enfil_sw_3p.xyz"
     neigh_cube   = readXYZ_Files(path_to_file, "no-save-file.txt", return_array=True)
     loadPath     = findPathToData(find_tf_savefile=True)
     master_list  = []
