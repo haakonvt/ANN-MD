@@ -18,9 +18,15 @@ def create_neighbour_list(all_atoms, selfindex, return_self=True):
      [ 3,  4,  5],  -->   [ 0,  0,  0],
      [ 6,  7,  8]]  -->   [ 3,  3,  3]]
     """
-    # TODO: Implement the cutoff
     xyz  = np.copy(all_atoms) # Dont change all_atoms array!
     xyz -= xyz[selfindex,:]
+    # Remove atoms outside SW cutoff! ...by moving them far away
+    for i, pos in enumerate(xyz):
+        if i == selfindex:
+            continue
+        else:
+            if np.linalg.norm(pos) > 3.77118:
+                xyz[i] = np.array([100.,100.,100.]) # Should be far enough away ;)
     if not return_self:
         # Delete row including self atom
         xyz = np.delete(xyz, (selfindex), axis=0)
@@ -28,8 +34,7 @@ def create_neighbour_list(all_atoms, selfindex, return_self=True):
 
 def force_calculation(dNNdG_matrix, all_atoms):
     """
-    Inputs: network, dNNdg, all_atoms
-    - network is an instance of class 'neural network'.
+    Inputs: dNNdg, all_atoms
     - dNNdG_matrix is the matrix composed of vectors of same length as the symmetry vectors.
     It contains the derivative of the neural network with respect to its inputs, i.e.
     the symmetry vector of atom i.
@@ -46,6 +51,15 @@ def force_calculation(dNNdG_matrix, all_atoms):
     tot_atoms   = all_atoms.shape[0]
     all_indices = range(tot_atoms)
 
+    def i2xyz(i):
+        """ For easy reading of error checks """
+        if i == 0:
+            return "x"
+        elif i == 1:
+            return "y"
+        else:
+            return "z"
+
     # Loop over all atoms
     total_forces = np.zeros((tot_atoms, 3)) # Fx, Fy, Fz on all atoms
     for selfindex, atom in enumerate(all_atoms):
@@ -58,6 +72,7 @@ def force_calculation(dNNdG_matrix, all_atoms):
             # Calculating derivative of fingerprints of self atom w.r.t. coordinates of itself.
             sym_f_der = symmetry_func_derivative(selfindex, selfneighborindices, selfneighborpositions, selfindex, i)
             total_forces[selfindex, i] += -np.dot(sym_f_der, self_dNNdG) # Minus sign since F = -d/dx V
+            # print selfindex, i2xyz(i), -np.dot(sym_f_der, self_dNNdG)
 
             # Calculating derivative of fingerprints of neighbor atom w.r.t. coordinates of self atom.
             for neigh_index in selfneighborindices:
@@ -69,6 +84,9 @@ def force_calculation(dNNdG_matrix, all_atoms):
                 # for calculating derivatives of fingerprints, summation runs over neighboring atoms
                 sym_f_der = symmetry_func_derivative(neigh_index, nneighborindices, neighborpositions, selfindex, i)
                 total_forces[selfindex, i] += -np.dot(sym_f_der, neigh_dNNdG)
+        #         print neigh_index, i2xyz(i),-np.dot(sym_f_der, neigh_dNNdG)
+        # print "F sum: X,Y,Z:", total_forces[selfindex]
+        # raw_input("one atom done!")
     return total_forces
 
 
@@ -105,15 +123,13 @@ def symmetry_func_derivative(index, neighborindices, neighborpositions, m, l):
         if which_symm == 2:
             _, eta, rc, rs  = G_funcs[i]
             eta, rc, rs     = float(eta), float(rc), float(rs)
-            ddx_symm_vec[i] = calculate_ddx_G2(neighborindices,
-                                              neighborpositions,
-                                              eta, rc, rs, index, m, l)
+            ddx_symm_vec[i] = calculate_ddx_G2(neighborindices, neighborpositions, eta, rc, rs, index, m, l)
         elif which_symm == 4:
             _, eta, rc, zeta, lamb = G_funcs[i]
             eta, rc, zeta, lamb    = float(eta), float(rc), float(zeta), float(lamb)
-            ddx_symm_vec[i]        = calculate_ddx_G4(neighborindices,
-                                                      neighborpositions,
-                                                      lamb, zeta, eta, rc, index, m, l)
+            ddx_symm_vec[i]        = calculate_ddx_G4(neighborindices, neighborpositions, lamb, zeta, eta, rc, index, m, l)
+            # ddx_symm_vec[i]   = calculate_ddx_G4_own(neighborindices, neighborpositions, lamb, zeta, eta, rc, index, m, l)
+            # raw_input("skip ahead!")
         else:
             print "Only use symmetry functions G2 or G4! Exiting!"
             sys.exit(0)
@@ -172,25 +188,67 @@ def calculate_ddx_G2(neighborindices, neighborpositions, eta, Rc, Rs, i, m, l):
             Rij    = np.linalg.norm(Rj - Ri) # Ri = 0,0,0, but still written for clarity
             term   = -2.0*eta*(Rij-Rs) * cutoff_func(Rij, Rc) + ddx_cutoff_func(Rij, Rc)
             value += exp(-eta*(Rij-Rs)**2) * term * dRijdRml
-        """print "AMP value:", value
-        # Vectors of x,y,z-coordinates for neighbours
-        xij = neighborpositions[j,l]
-        # yij = neighborpositions[j,1]
-        # zij = neighborpositions[j,2]
-        rij    = np.linalg.norm(Rj - Ri) # Ri = 0,0,0, but still written for clarity
-        # rij   = np.linalg.norm((xij, yij, zij)) # Neighbour distance
-        term = (eta*Rc*(rij - Rs)*(cos(pi*rij/Rc) + 1.0) + 0.5*pi*sin(pi*rij/Rc)) \
-               * exp(-eta*(rij - Rs)**2)/(Rc*rij)
-        Fx = -1.0*(xij * term)
-        # Fy = -1.0*(yij * term)
-        # Fz = -1.0*(zij * term)
-        print "OWN Fxyz :", -Fx
-        # print "OWN Fy   :", -Fy
-        # print "OWN Fz   :", -Fz
-        raw_input("\n\n########\n")
-        # return np.array([Fx, Fy, Fz]) # Minus sign comes from F = -d/dx V"""
     return value
 
+def calculate_ddx_G4_own(neighborindices, neighborpositions, lamb, zeta, eta, rc, index, m, l):
+# def calculate_ddx_G4_own(xyz, eta, rc, zeta, lamb):
+    """
+    Derivative of symmetry function G4 w.r.t xij, yij, zij.
+    """
+    # xyz, eta, rc, zeta, lamb
+    xyz = np.array([neighborpositions[ind] for ind in neighborindices])
+    # Vectors of x,y,z-coordinates for neighbours
+    if len(xyz[:,0]) != 2:
+        # print "Warning: dG4 d x,y,z only works on single unique triplet"
+        return np.zeros(3)
+    r = np.linalg.norm(xyz, axis=1) # Neighbour distances
+    xij = xyz[0,0]; yij = xyz[0,1]; zij = xyz[0,2]
+    xik = xyz[1,0]; yik = xyz[1,1]; zik = xyz[1,2]
+    rij = r[0]    ; rik = r[1]    ; rjk = np.linalg.norm(xyz[0,:]-xyz[1,:])
+    cosTheta = (xij*xik + yij*yik + zij*zik) / (rij*rik)
+
+    # ...and finally the derivaties from sympy: (hold on to something!!)
+    dG4_dxij = -2**(-zeta)*(cos(pi*rik/rc) + 1)*(cos(pi*rjk/rc) + 1)\
+               *(0.5*eta*rc*rij**2*rik*xij*(cosTheta*lamb + 1)**(zeta + 1)\
+               *(cos(pi*rij/rc) + 1) + 0.25*lamb*rc*zeta*(cosTheta*lamb + 1)**zeta\
+               *(cosTheta*rik*xij - rij*xik)*(cos(pi*rij/rc) + 1) + 0.25*pi*rij*rik*xij\
+               *(cosTheta*lamb + 1)**(zeta + 1)*sin(pi*rij/rc))*exp(-eta*(rij**2 + rik**2 + rjk**2))\
+               /(rc*rij**2*rik*(cosTheta*lamb + 1))
+    dG4_dyij = -2**(-zeta)*(cos(pi*rik/rc) + 1)*(cos(pi*rjk/rc) + 1)\
+               *(0.5*eta*rc*rij**2*rik*yij*(cosTheta*lamb + 1)**(zeta + 1)\
+               *(cos(pi*rij/rc) + 1) + 0.25*lamb*rc*zeta*(cosTheta*lamb + 1)**zeta\
+               *(cosTheta*rik*yij - rij*yik)*(cos(pi*rij/rc) + 1) + 0.25*pi*rij*rik*yij\
+               *(cosTheta*lamb + 1)**(zeta + 1)*sin(pi*rij/rc))*exp(-eta*(rij**2 + rik**2 + rjk**2))\
+               /(rc*rij**2*rik*(cosTheta*lamb + 1))
+    dG4_dzij = -2**(-zeta)*(cos(pi*rik/rc) + 1)*(cos(pi*rjk/rc) + 1)\
+               *(0.5*eta*rc*rij**2*rik*zij*(cosTheta*lamb + 1)**(zeta + 1)\
+               *(cos(pi*rij/rc) + 1) + 0.25*lamb*rc*zeta*(cosTheta*lamb + 1)**zeta\
+               *(cosTheta*rik*zij - rij*zik)*(cos(pi*rij/rc) + 1) + 0.25*pi*rij*rik*zij\
+               *(cosTheta*lamb + 1)**(zeta + 1)*sin(pi*rij/rc))*exp(-eta*(rij**2 + rik**2 + rjk**2))\
+               /(rc*rij**2*rik*(cosTheta*lamb + 1))
+    dG4_dxik = -2**(-zeta)*(cos(pi*rij/rc) + 1)*(cos(pi*rjk/rc) + 1)\
+               *(0.5*eta*rc*rij*rik**2*xik*(cosTheta*lamb + 1)**(zeta + 1)\
+               *(cos(pi*rik/rc) + 1) + 0.25*lamb*rc*zeta*(cosTheta*lamb + 1)**zeta\
+               *(cosTheta*rij*xik - rik*xij)*(cos(pi*rik/rc) + 1) + 0.25*pi*rij*rik*xik\
+               *(cosTheta*lamb + 1)**(zeta + 1)*sin(pi*rik/rc))*exp(-eta*(rij**2 + rik**2 + rjk**2))\
+               /(rc*rij*rik**2*(cosTheta*lamb + 1))
+    dG4_dyik = -2**(-zeta)*(cos(pi*rij/rc) + 1)*(cos(pi*rjk/rc) + 1)\
+               *(0.5*eta*rc*rij*rik**2*yik*(cosTheta*lamb + 1)**(zeta + 1)\
+               *(cos(pi*rik/rc) + 1) + 0.25*lamb*rc*zeta*(cosTheta*lamb + 1)**zeta\
+               *(cosTheta*rij*yik - rik*yij)*(cos(pi*rik/rc) + 1) + 0.25*pi*rij*rik*yik\
+               *(cosTheta*lamb + 1)**(zeta + 1)*sin(pi*rik/rc))*exp(-eta*(rij**2 + rik**2 + rjk**2))\
+               /(rc*rij*rik**2*(cosTheta*lamb + 1))
+    dG4_dzik = -2**(-zeta)*(cos(pi*rij/rc) + 1)*(cos(pi*rjk/rc) + 1)\
+               *(0.5*eta*rc*rij*rik**2*zik*(cosTheta*lamb + 1)**(zeta + 1)\
+               *(cos(pi*rik/rc) + 1) + 0.25*lamb*rc*zeta*(cosTheta*lamb + 1)**zeta\
+               *(cosTheta*rij*zik - rik*zij)*(cos(pi*rik/rc) + 1) + 0.25*pi*rij*rik*zik\
+               *(cosTheta*lamb + 1)**(zeta + 1)*sin(pi*rik/rc))*exp(-eta*(rij**2 + rik**2 + rjk**2))\
+               /(rc*rij*rik**2*(cosTheta*lamb + 1))
+    tot_force = -1.0*np.array([dG4_dxij+dG4_dxik, dG4_dyij+dG4_dyik, dG4_dzij+dG4_dzik])[l] # Minus sign comes from F = -d/dx V
+    # tot_force = np.array([dG4_dxij, dG4_dyij, dG4_dzij]) # Minus sign comes from F = -d/dx V
+    return tot_force
+    # tot_force = -np.array([dG4_dxij, dG4_dyij, dG4_dzij])[l] # Minus sign comes from F = -d/dx V
+    # return tot_force
 
 def calculate_ddx_G4(neighborindices, neighborpositions, lamb, zeta, eta, cutoff, i, m, l):
     """Calculates coordinate derivative of G4 symmetry function for atom at
@@ -211,10 +269,8 @@ def calculate_ddx_G4(neighborindices, neighborpositions, lamb, zeta, eta, cutoff
         Parameter of Behler symmetry functions.
     eta : float
         Parameter of Behler symmetry functions.
-    cutoff : dict
-        Cutoff function, typically from amp.descriptor.cutoffs. Should be also
-        formatted as a dictionary by todict method, e.g.
-        cutoff=Cosine(6.5).todict()
+    cutoff : float
+        Interaction distance
     i : int
         Index of the center atom.
     Ri : numpy array
@@ -236,15 +292,14 @@ def calculate_ddx_G4(neighborindices, neighborpositions, lamb, zeta, eta, cutoff
     ddx_cutoff_func = ddx_cutoff_cos
     value           = 0.0
     # number of neighboring atoms
-    # counts = range(len(neighborpositions))
-    for jj,j in enumerate(neighborindices): # J = index of atom j, jj = index of j in neigh.indices
-        for k in neighborindices:#[jj+1:]:
+    for j in neighborindices: # J = index of atom j
+        Rj = neighborpositions[j]
+        Rij_vector = neighborpositions[j] - Ri
+        Rij = np.linalg.norm(Rij_vector)
+        for k in neighborindices:
             if j == k:
                 continue
-            Rj = neighborpositions[j]
             Rk = neighborpositions[k]
-            Rij_vector = neighborpositions[j] - Ri
-            Rij = np.linalg.norm(Rij_vector)
             Rik_vector = neighborpositions[k] - Ri
             Rik = np.linalg.norm(Rik_vector)
             Rjk_vector = neighborpositions[k] - neighborpositions[j]
@@ -255,14 +310,14 @@ def calculate_ddx_G4(neighborindices, neighborpositions, lamb, zeta, eta, cutoff
             fcRij = cutoff_func(Rij, Rc)
             fcRik = cutoff_func(Rik, Rc)
             fcRjk = cutoff_func(Rjk, Rc)
-            if zeta == 1:
-                term1 = exp(- eta * (Rij ** 2 + Rik ** 2 + Rjk ** 2))
-            else:
-                term1 = c1 ** (zeta - 1.0) * \
-                    exp(- eta * (Rij ** 2 + Rik ** 2 + Rjk ** 2))
-            term2 = 0.0
             fcRijfcRikfcRjk = fcRij * fcRik * fcRjk
-            dCosthetadRml   = dCos_theta_ijk_dR_ml(i, j, k, Ri, Rj, Rk, m, l)
+
+            if zeta == 1:
+                term1 = exp(-eta*(Rij**2 + Rik**2 + Rjk**2))
+            else:
+                term1 = exp(-eta*(Rij**2 + Rik**2 + Rjk**2)) * c1**(zeta-1.0)
+            term2 = 0.0
+            dCosthetadRml = dCos_theta_ijk_dR_ml(i, j, k, Ri, Rj, Rk, m, l)
             if dCosthetadRml != 0:
                 term2 += lamb * zeta * dCosthetadRml
             dRijdRml = dRij_dRml(i, j, Ri, Rj, m, l)
@@ -331,7 +386,7 @@ def dCos_theta_ijk_dR_ml(i, j, k, Ri, Rj, Rk, m, l):
 
     dRijdRml = dRij_dRml(i, j, Ri, Rj, m, l)
     if dRijdRml != 0:
-        dCos_theta_ijk_dR_ml += - np.dot(Rij_vector, Rik_vector) * dRijdRml / ((Rij ** 2.) * Rik)
+        dCos_theta_ijk_dR_ml += -np.dot(Rij_vector, Rik_vector) * dRijdRml / ((Rij ** 2.) * Rik)
 
     dRikdRml = dRij_dRml(i, k, Ri, Rk, m, l)
     if dRikdRml != 0:
@@ -409,7 +464,7 @@ def ddx_cutoff_cos(Rij, Rc):
     float
         The vaule of derivative of the cutoff function.
     """
-    if Rij > Rc:
+    if Rij > Rc:# or Rij > 3.77118:
         return 0.
     else:
         return (-0.5 * pi / Rc) * sin(pi * Rij / Rc)
@@ -436,14 +491,14 @@ def dRij_dRml(i, j, Ri, Rj, m, l):
     Returns
     -------
     dRij_dRml : list of float
-        The derivative of the noRi of position vector R_{ij} with respect to
+        The derivative of the Ri of position vector R_{ij} with respect to
         x_{l} of atomic index m.
     """
     Rij = np.linalg.norm(Rj - Ri)
     if m == i:
         dRij_dRml = -(Rj[l] - Ri[l]) / Rij
     elif m == j:
-        dRij_dRml = (Rj[l] - Ri[l]) / Rij
+        dRij_dRml =  (Rj[l] - Ri[l]) / Rij
     else:
         dRij_dRml = 0
     return dRij_dRml
@@ -578,3 +633,12 @@ def cos_theta_check(cos_theta):
 #     Fy = -1.0*np.sum(-yij * term)
 #     Fz = -1.0*np.sum(-zij * term)
 #     return np.array([Fx, Fy, Fz])
+
+if __name__ == '__main__':
+    """
+    Checking that neigh. list correctly removes atoms outside cutoff at 3.77118
+    """
+    test = np.array([[1, 1, 1], [2, 2, 2], [3, 3, 3], [4, 4, 4]])
+    for selfindex in range(4):
+        print selfindex
+        print create_neighbour_list(test, selfindex), "\n"

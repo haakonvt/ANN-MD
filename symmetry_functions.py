@@ -11,7 +11,6 @@ def cutoff_tanh(r,rc):
     """
     Can take scalar and vector input of r and evaluate the cutoff function
     """
-    # rc = float(rc)
     if type(r) == int:
         if r <= rc:
             return tanh(1-r/rc)**3
@@ -24,14 +23,14 @@ def cutoff_cos(r,rc):
     """
     Can take scalar, vector or matrix input of r and evaluate the cutoff function
     """
-    # rc = float(rc)
+    # r_SW_cut = 100#3.77118
     if type(r) == int:
-        if r <= rc:
+        if r <= rc and r < r_SW_cut:
             return 0.5*(cos(pi*r/rc)+1)
         else:
             return 0.
     else:
-        return 0.5*(np.cos(pi*r/rc)+1) * (r <= rc)
+        return 0.5*(np.cos(pi*r/rc)+1) * (r <= rc)# * (r < r_SW_cut)
 
 """
 #################
@@ -161,12 +160,12 @@ def G4_single_neighbor_radial_cut(r, rc, zeta, lambda_c, eta, cutoff=cutoff_cos)
     angle_factor = 2**(1-zeta) * (1 + lambda_c * np.cos(theta))**zeta
     return angle_factor * exp_factor * cutoff(r, rc)**3
 
-def G5_single_neighbor_radial_cut(r, rc, zeta, lambda_c, eta, rs, cutoff=cutoff_cos):
+def G5_single_neighbor_radial_cut(r, rc, zeta, lambda_c, eta, cutoff=cutoff_cos):
     """
     With cutoff
     """
     theta = pi/3. # Constant at 60 degrees aka pi/3
-    exp_factor   = np.exp(-eta * 2*(r-rs)**2)
+    exp_factor   = np.exp(-eta * 2*r**2)
     angle_factor = 2**(1-zeta) * (1 + lambda_c * cos(theta))**zeta
     return angle_factor * exp_factor * cutoff(r, rc)**2
 

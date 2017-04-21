@@ -16,6 +16,82 @@ import time
 import sys
 import os
 
+def PES_Lennard_Jones(xyz_i):
+    """
+    Simple LJ pair potential
+    """
+    eps = 1. # 1.0318 * 10^(-2) eV
+    sig = 1. # 3.405 * 10^(-7) meter
+    r   = np.linalg.norm(xyz_i, axis=1)
+    rc  = 1.6*sig
+    LJ0 = abs(4*eps*((sig/rc)**12 - (sig/rc)**6)) # Potential goes to zero at cut
+    LJ  = 4*eps*((sig/r)**12 - (sig/r)**6) * (r < rc) + LJ0
+    U   =  np.sum( LJ )
+    return U
+
+def PES_Stillinger_Weber(xyz_i):
+    """
+    INPUT
+    - xyz_i: Matrix with columnds containing cartesian coordinates,
+           relative to the current atom i, i.e.:
+           [[x1 y1 z1]
+            [x2 y2 z2]
+            [x3 y3 z3]
+            [x4 y4 z4]]
+    """
+    xyz = xyz_i
+    r = np.linalg.norm(xyz, axis=1)
+    N = len(r) # Number of neighbors for atom i, which we are currently inspecting
+
+    # A lot of definitions first
+    A = 7.049556277
+    B = 0.6022245584
+    p = 4.
+    q = 0.
+    a = 1.8
+    l = 21. # lambda
+    g = 1.2 # gamma
+    cos_tc = -1.0/3.0 # 109.47 deg
+
+    eps = 2.1683 # [eV]
+    sig = 2.0951 # [Å]
+
+    rc = (r < a*sig) # Bool array. "False" cast to 0 and "True" to 1
+    # filterwarnings("ignore", category=RuntimeWarning) # U2 below can give NaN
+    U2 = A*eps*(B*(sig/r)**p-(sig/r)**q) * np.exp(sig/(r-a*sig)) * rc
+    # filterwarnings("always", category=RuntimeWarning) # Turn warnings back on
+    def U2_serial(r_vec, r_cut): # Slow, i.e. only use if U2 gives NaN
+        U2_E = 0
+        for r,rc in zip(r_vec,r_cut):
+            if rc:
+                U2_E += A*eps*(B*(sig/r)**p-(sig/r)**q) * np.exp(sig/(r-a*sig))
+            else:
+                pass # Add 0
+        return U2_E
+    def U3(rij, rik, cos_theta):
+        if (rij < a*sig) and (rik < a*sig):
+            exp_factor   = exp(g*sig/(rij-a*sig)) * exp(g*sig/(rik-a*sig))
+            angle_factor = l*eps*(cos_theta - cos_tc)**2
+            return exp_factor * angle_factor
+        else:
+            return 0.0
+    # Sum up two body terms
+    U2_sum  = np.sum(U2)
+    if isnan(U2_sum): # NaN gotten, re-computing with serial code. U2 = ", U2_sum
+        U2_sum = U2_serial(r, rc)
+    # Need a double sum to find three body terms
+    U3_sum = 0.0
+    for j in range(N): # j != i
+        v_rij = xyz[j] # Only depend on j
+        rij   = r[j]
+        for k in range(j+1,N): # i < j < k
+            v_rik = xyz[k]
+            rik   = r[k]
+            cos_theta_jik = np.dot(v_rij,  v_rik) / (rij*rik)
+            U3_sum += U3(rij, rik, cos_theta_jik)
+    U_total = U2_sum/2.0 + U3_sum
+    return U_total
+
 def potentialEnergyGenerator(xyz_N, PES):
     if len(xyz_N.shape) == 2: # This is just a single neighbor list
         return PES(xyz_N)
@@ -63,82 +139,6 @@ def createXYZ(r_min, r_max, size, neighbors=7, histogramPlot=False, verbose=Fals
         import matplotlib.pyplot as plt
         plt.subplot(3,1,1);plt.hist(xyz_N[:,0,:].ravel(),bins=70);plt.subplot(3,1,2);plt.hist(xyz_N[:,1,:].ravel(),bins=70);plt.subplot(3,1,3);plt.hist(xyz_N[:,2,:].ravel(),bins=70);plt.show()
     return xyz_N
-
-def PES_Lennard_Jones(xyz_i):
-    """
-    Simple LJ pair potential
-    """
-    eps = 1. # 1.0318 * 10^(-2) eV
-    sig = 1. # 3.405 * 10^(-7) meter
-    r   = np.linalg.norm(xyz_i, axis=1)
-    rc  = 1.6*sig
-    LJ0 = abs(4*eps*((sig/rc)**12 - (sig/rc)**6)) # Potential goes to zero at cut
-    LJ  = 4*eps*((sig/r)**12 - (sig/r)**6) * (r < rc) + LJ0
-    U   =  np.sum( LJ )
-    return U
-
-def PES_Stillinger_Weber(xyz_i):
-    """
-    INPUT
-    - xyz_i: Matrix with columnds containing cartesian coordinates,
-           relative to the current atom i, i.e.:
-           [[x1 y1 z1]
-            [x2 y2 z2]
-            [x3 y3 z3]
-            [x4 y4 z4]]
-    """
-    xyz = xyz_i
-    r = np.linalg.norm(xyz, axis=1)
-    N = len(r) # Number of neighbors for atom i, which we are currently inspecting
-
-    # A lot of definitions first
-    A = 7.049556277
-    B = 0.6022245584
-    p = 4.
-    q = 0.
-    a = 1.8
-    l = 21. # lambda
-    g = 1.2 # gamma
-    cos_tc = -1.0/3.0 # 109.47 deg
-
-    eps = 2.1683 # [eV]
-    sig = 2.0951 # [Å]
-
-    rc = (r < a*sig) # Bool array. "False" cast to 0 and "True" to 1
-    filterwarnings("ignore", category=RuntimeWarning) # U2 below can give NaN
-    U2 = A*eps*(B*(sig/r)**p-(sig/r)**q) * np.exp(sig/(r-a*sig)) * rc
-    filterwarnings("always", category=RuntimeWarning) # Turn warnings back on
-    def U2_serial(r_vec, r_cut): # Slow, i.e. only use if U2 gives NaN
-        U2_E = 0
-        for r,rc in zip(r_vec,r_cut):
-            if rc:
-                U2_E += A*eps*(B*(sig/r)**p-(sig/r)**q) * np.exp(sig/(r-a*sig))
-            else:
-                pass # Add 0
-        return U2_E
-    def U3(rij, rik, cos_theta):
-        if (rij < a*sig) and (rik < a*sig):
-            exp_factor   = exp(g*sig/(rij-a*sig)) * exp(g*sig/(rik-a*sig))
-            angle_factor = l*eps*(cos_theta - cos_tc)**2
-            return exp_factor * angle_factor
-        else:
-            return 0.0
-    # Sum up two body terms
-    U2_sum  = np.sum(U2) / 2.0 # Each pair share this energy. Contribute half to each
-    if isnan(U2_sum): # NaN gotten, re-computing with serial code. U2 = ", U2_sum
-        U2_sum = U2_serial(r, rc) #/ 2.0
-    # Need a double sum to find three body terms
-    U3_sum = 0.0
-    for j in range(N): # j != i
-        v_rij = xyz[j] # Only depend on j
-        rij   = r[j]
-        for k in range(j+1,N): # i < j < k
-            v_rik = xyz[k]
-            rik   = r[k]
-            cos_theta_jik = np.dot(v_rij,  v_rik) / (rij*rik)
-            U3_sum += U3(rij, rik, cos_theta_jik)
-    U_total = U3_sum + U2_sum/2.0
-    return U_total
 
 def createTrainData(size, neighbors, PES, verbose=False):
     if PES == PES_Stillinger_Weber:
@@ -428,15 +428,6 @@ def testLammpsData(filename):
             xyzr_i   = xyzr_i[:-1].reshape(n_elem,4)
             xyz_i    = xyzr_i[:,:-1]
             Ep2.append(potentialEnergyGenerator(xyz_i,PES=PES_Stillinger_Weber))
-        # import matplotlib.pyplot as plt
-        # plt.subplot(2,1,1)
-        # plt.hist(Ep,bins=200)
-        # plt.subplot(2,1,2)
-        # plt.hist(Ep2,bins=30)
-        # plt.show()
-        # plt.savefig("merkeligEp.pdf")
-        # print len(Ep)
-        # print np.mean(Ep), np.mean(Ep2), np.mean(Ep2)/np.mean(Ep)
 
 def NeighListDataToSymmToFile(open_filename, save_filename, size):
     Ep = []
@@ -543,6 +534,7 @@ def testAngularInvarianceEpAndSymmFuncs():
 if __name__ == '__main__':
     """
     Suggestion: Only have ONE option set to True at the time.
+                (not an absolute rule!)
     """
     # Based on random structures, fixed/variable number of neighbors
     dumpToFile         = False
@@ -552,22 +544,19 @@ if __name__ == '__main__':
     xyz_to_neigh_lists = True
     dumpXYZ_file       = True # Own algo: "readXYZ_Files"
 
-    # Neig.lists from lammps with John-Anders algo
-    dumpLammpsFile     = False
-
     # Unit tests
     testAngSymm        = False
     testLammps         = False
     testClass          = False
 
-    n_atoms    = 3
+    n_atoms    = int(raw_input("Number of atoms? "))
     other_info = "" # i.e. "no_3_body"
     if xyz_to_neigh_lists:
         """
         Takes XYZ files from LAMMPS dump and makes neighbor lists
         """
         cutoff         = 3.77118 # Stillinger-Weber
-        samples_per_dt = "all"   # Integer value or "all"
+        samples_per_dt = 1   # Integer value or "all"
         test_boundary  = False   # Just use atoms wherever they are
         file_path = "Important_data/TestNN/enfil_sw_%sp%s.xyz" %(n_atoms,other_info)
         save_file = "Important_data/neigh_list_from_xyz_%sp%s.txt" %(n_atoms,other_info)
@@ -587,12 +576,6 @@ if __name__ == '__main__':
     if testLammps:
         filename = "Important_data/neighbours.txt"
         testLammpsData(filename)
-
-    if dumpLammpsFile:
-        size          = 10000 # should be <= rows in file!!!!
-        open_filename = "Important_data/neigh_100K.txt"
-        save_filename = "SW_train_lammps_%d_BEH.txt" %size
-        NeighListDataToSymmToFile(open_filename, save_filename, size)
 
     if dumpToFile:
         if True:

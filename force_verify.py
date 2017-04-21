@@ -26,7 +26,7 @@ def test_structure_N_atom(neigh_cube, neural_network, plot_single=False, last_ti
 
     # Need Ep of all atoms in NN-calculation of forces:
     tot_nmbr_of_atoms = neigh_cube[0].shape[0]
-    Ep_NN_all_atoms   = np.zeros(tot_nmbr_of_atoms)
+    Ep_NN_all_atoms   = [None]*3
     _, nmbr_G         = generate_symmfunc_input_Si_Behler()
     dNNdG_matrix      = np.zeros((tot_nmbr_of_atoms, nmbr_G))
 
@@ -44,29 +44,46 @@ def test_structure_N_atom(neigh_cube, neural_network, plot_single=False, last_ti
         Fvec_SW = (0,0,0) # Only a placeholder! LAMMPS data filled in later
 
         # Potential and forces computed by trained neural network:
-        for i_atom in range(tot_nmbr_of_atoms):
-            xyz_atom_centered       = create_neighbour_list(xyz, i_atom, return_self=False)
-            symm_vec                = neural_network.create_symvec_from_xyz(xyz_atom_centered)
-            Ep_NN_all_atoms[i_atom] = neural_network(symm_vec) # Evaluates the NN
-            dNNdG_matrix[i_atom,:]  = neural_network.derivative().reshape(nmbr_G,)
-        # Now that we have all Ep of all atoms, run force calculation:
-        f_tot = force_calculation(dNNdG_matrix, xyz)
+        # for i_atom in range(tot_nmbr_of_atoms):
+        #     xyz_atom_centered       = create_neighbour_list(xyz, i_atom, return_self=False)
+        #     symm_vec                = neural_network.create_symvec_from_xyz(xyz_atom_centered)
+        #     Ep_NN_all_atoms[i_atom] = neural_network(symm_vec) # Evaluates the NN
+        #     dNNdG_matrix[i_atom,:]  = neural_network.derivative().reshape(nmbr_G,)
+        # # Now that we have all Ep of all atoms, run force calculation:
+        # f_tot = force_calculation(dNNdG_matrix, xyz)
+
+        # Finite difference derivative of NN:
+        i_a       = 0 # Look at this particle only
+        off_value = 0.001
+        num_force_atom_0 = [0,0,0]
+        for fdir in [0,1,2]: # Force in direction x, y, z
+            Ep_off = [0,0] # Reset Ep
+            for i_off, offset in enumerate([-off_value, off_value]):
+                xyz_c            = np.copy(xyz)
+                xyz_c[i_a,fdir] -= offset # Moving the atom a tiny bit in direction "fdir"
+                for cur_atom in range(tot_nmbr_of_atoms):
+                    xyz_atom_centered = create_neighbour_list(xyz_c, cur_atom, return_self=False)
+                    symm_vec          = neural_network.create_symvec_from_xyz(xyz_atom_centered)
+                    Ep_off[i_off]    += neural_network(symm_vec) # Evaluates the NN
+            # Compute the force with central difference (Error: O(dx^2)) <-- big O-notation
+            num_force_atom_0[fdir] = (Ep_off[1]-Ep_off[0])/(2*off_value)
 
         # Append all values to lists:
         Ep_SW_list.append(Ep_SW)
-        Ep_NN_list.append(Ep_NN_all_atoms[0]) # Pick out first atom (for comparison)
+        Ep_NN_list.append(Ep_NN_all_atoms[:]) # Pick out first atom (for comparison)
         Fvec_SW_list.append(Fvec_SW)
-        Fvec_NN_list.append(f_tot[0])         # Pick out first atom (for comparison)
+        # Fvec_NN_list.append(f_tot[0])
+        Fvec_NN_list.append(num_force_atom_0)
 
         # Print out progress
         if t%20 == 0 and t > 50:
             sys.stdout.write("\rTimestep: %d" %t)
             sys.stdout.flush()
     print " "
-    # sys.exit(0) # """#########################"""
-
+    Ep_SW_list = np.array(Ep_SW_list)
+    Ep_NN_list = np.array(Ep_NN_list)
     if plot_single:
-        plotErrorEvolutionSWvsNN(Ep_SW_list, Ep_NN_list, tot_nmbr_of_atoms)
+        plotErrorEvolutionSWvsNN(Ep_SW_list, Ep_NN_list[:,0], tot_nmbr_of_atoms)
     # Return values for more plotting
     return Ep_SW_list, Ep_NN_list, tot_nmbr_of_atoms, Fvec_SW_list, Fvec_NN_list
 
@@ -81,7 +98,8 @@ if __name__ == '__main__':
         print "- N is the different NN-versions to visualize"
         print "- M is the last timestep"
         sys.exit(0)
-    path_to_file = "Important_data/TestNN/enfil_sw_3p.xyz"
+    n_atoms    = int(raw_input("Number of atoms? "))
+    path_to_file = "Important_data/TestNN/enfil_sw_%dp.xyz" %n_atoms
     neigh_cube   = readXYZ_Files(path_to_file, "no-save-file.txt", return_array=True)
     loadPath     = findPathToData(find_tf_savefile=True)
     master_list  = []
@@ -105,16 +123,30 @@ if __name__ == '__main__':
         nn_eval = neural_network(loadPath, sigmoid, ddx_sig)
         Ep_SW, Ep_NN, N_atoms, F_SW, F_NN = test_structure_N_atom(neigh_cube,
                                             nn_eval, plot_single=False, last_timestep=last_timestep)
-        plot_info = [Ep_SW, Ep_NN, N_atoms, nn_eval.what_epoch]
+        # diff = np.mean(np.abs(np.array([i-j for i,j in zip(Ep_SW, Ep_NN[:,0])])))
+        # print "Potential energy abs diff:", diff
+        plot_info = [Ep_SW, Ep_NN[:,0], N_atoms, nn_eval.what_epoch]
         master_list.append(plot_info)
 
     # Plot each epoch in a new subplot:
     if N > 1:
         plotEvolutionSWvsNN_N_diff_epochs(N, master_list)
 
-    # Grab LAMMPS force data
-    # NB!!!
+
+    # Pick out first atom (for comparison)
+    F_NN = np.array(F_NN)#[:,0]
+
+    # Grab LAMMPS force data, NB: must be perfectly consistent with XYZ-files!!!!!
     F_LAMMPS = plotLAMMPSforces1atomEvo()[:len(F_NN)]
+    F_SW     = np.array(F_LAMMPS, dtype=float)
 
     # Plot comparison of forces
     plotForcesSWvsNN(F_LAMMPS, F_NN, show=True)
+    # plotForcesSWvsNN(F_LAMMPS, np.array(F_NN)[:,0], show=True)
+    # plotForcesSWvsNN(F_LAMMPS, np.array(F_NN)[:,1], show=True)
+    # plotForcesSWvsNN(F_LAMMPS, np.array(F_NN)[:,2], show=True)
+    # for i in range(last_timestep):
+    #     print "Forces LAMMPS:", F_SW[i]
+    #     print "Forces, NN   :", F_NN[i]
+    #     print "Diff,        :", F_SW[i]-F_NN[i], "\n"
+    #     raw_input("ASDF")

@@ -4,6 +4,7 @@ import glob
 import shutil
 import datetime
 import numpy as np
+from time import sleep
 
 def timeStamp():
     return datetime.datetime.now().strftime("%H.%M.%S--%d.%m.%Y")
@@ -170,7 +171,8 @@ def readXYZ_Files(path_to_file, save_name, samples_per_dt=30, cutoff=3.77118,
     """
     print "\nReading XYZ-file:"
     print '"%s"' %path_to_file
-    print "NB: This might take some minutes, depending on the number of samples and time steps!"
+    print "NB: This might take some minutes, dep. on the samples / time step!"
+    sleep(1.0)
     if samples_per_dt == "all":
         return_all     = True
     else:
@@ -186,11 +188,12 @@ def readXYZ_Files(path_to_file, save_name, samples_per_dt=30, cutoff=3.77118,
                 if row == 0:
                     tot_nmbr_of_atoms = int(line)
                     xyz_ti = np.zeros((tot_nmbr_of_atoms, 3))
-                    print "Number of atoms:", tot_nmbr_of_atoms
-                    samples_per_dt = int(tot_nmbr_of_atoms)
+                    # print "Number of atoms:", tot_nmbr_of_atoms
+                    if samples_per_dt == "all":
+                        samples_per_dt = int(tot_nmbr_of_atoms)
                     continue
                 elif row == 1:
-                    print 'Comment line said: "%s"' %line[:-1]
+                    # print 'Comment line said: "%s"' %line[:-1]
                     continue
             elif row == 0 or row == 1:
                 continue
@@ -288,8 +291,6 @@ def compute_neigh_lists(xyz, master_neigh_list, samples_per_dt, cutoff, test_bou
         nn_list.append("nan") # This file does not contain pot. energy. So if wrongly read, give NAN
         master_neigh_list.append(nn_list)
         if i == tot_neig:
-            # for i in master_neigh_list:
-            #     print np.array(i),"\n"
             break
 
 

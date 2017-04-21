@@ -232,9 +232,9 @@ def parseCommandLine():
         print ">>> python training_nn.py SW_dat.txt 5000   30    5        True False"
         sys.exit(0)
     def bool_from_user_input(inp):
-        if inp in ['True', 'TRUE', 'true']:
+        if inp in ['True', 'TRUE', 'true',"T","t"]:
              return True
-        elif inp in ['False', 'FALSE', 'false']:
+        elif inp in ['False', 'FALSE', 'false',"F","f"]:
              return False
         else:
             error_and_exit()
