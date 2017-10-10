@@ -266,3 +266,16 @@ if __name__ == '__main__':
     # Potential: Vashista
     if False:
         pass
+
+"""
+TODO: Implement BFGS:
+
+train_step = tf.contrib.opt.ScipyOptimizerInterface(
+                loss,
+                method='L-BFGS-B',
+                options={'maxiter': iterations})
+
+with tf.Session() as sess:
+    sess.run(tf.global_variables_initializer())
+    train_step.minimize(sess)
+"""

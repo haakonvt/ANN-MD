@@ -48,9 +48,6 @@ def force_calculation(dNNdG_matrix, all_atoms):
     Returns:
     Numpy array with total forces on all particles in all xyz-directions.
     """
-    tot_atoms   = all_atoms.shape[0]
-    all_indices = range(tot_atoms)
-
     def i2xyz(i):
         """ For easy reading of error checks """
         if i == 0:
@@ -59,6 +56,8 @@ def force_calculation(dNNdG_matrix, all_atoms):
             return "y"
         else:
             return "z"
+    tot_atoms   = all_atoms.shape[0]
+    all_indices = range(tot_atoms)
 
     # Loop over all atoms
     total_forces = np.zeros((tot_atoms, 3)) # Fx, Fy, Fz on all atoms
@@ -72,7 +71,8 @@ def force_calculation(dNNdG_matrix, all_atoms):
             # Calculating derivative of fingerprints of self atom w.r.t. coordinates of itself.
             sym_f_der = symmetry_func_derivative(selfindex, selfneighborindices, selfneighborpositions, selfindex, i)
             total_forces[selfindex, i] += -np.dot(sym_f_der, self_dNNdG) # Minus sign since F = -d/dx V
-            # print selfindex, i2xyz(i), -np.dot(sym_f_der, self_dNNdG)
+            # if selfindex == 0:
+            #     print i2xyz(i),-np.dot(sym_f_der, self_dNNdG)
 
             # Calculating derivative of fingerprints of neighbor atom w.r.t. coordinates of self atom.
             for neigh_index in selfneighborindices:
@@ -84,7 +84,8 @@ def force_calculation(dNNdG_matrix, all_atoms):
                 # for calculating derivatives of fingerprints, summation runs over neighboring atoms
                 sym_f_der = symmetry_func_derivative(neigh_index, nneighborindices, neighborpositions, selfindex, i)
                 total_forces[selfindex, i] += -np.dot(sym_f_der, neigh_dNNdG)
-        #         print neigh_index, i2xyz(i),-np.dot(sym_f_der, neigh_dNNdG)
+                if selfindex == 0:
+                    print i2xyz(i),-np.dot(sym_f_der, neigh_dNNdG)
         # print "F sum: X,Y,Z:", total_forces[selfindex]
         # raw_input("one atom done!")
     return total_forces

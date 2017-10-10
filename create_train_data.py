@@ -12,7 +12,7 @@ from warnings import filterwarnings
 import tensorflow as tf
 import numpy as np
 import glob
-import time
+# import time
 import sys
 import os
 
@@ -57,9 +57,9 @@ def PES_Stillinger_Weber(xyz_i):
     sig = 2.0951 # [Å]
 
     rc = (r < a*sig) # Bool array. "False" cast to 0 and "True" to 1
-    # filterwarnings("ignore", category=RuntimeWarning) # U2 below can give NaN
+    filterwarnings("ignore", category=RuntimeWarning) # U2 below can give NaN
     U2 = A*eps*(B*(sig/r)**p-(sig/r)**q) * np.exp(sig/(r-a*sig)) * rc
-    # filterwarnings("always", category=RuntimeWarning) # Turn warnings back on
+    filterwarnings("always", category=RuntimeWarning) # Turn warnings back on
     def U2_serial(r_vec, r_cut): # Slow, i.e. only use if U2 gives NaN
         U2_E = 0
         for r,rc in zip(r_vec,r_cut):
@@ -89,7 +89,7 @@ def PES_Stillinger_Weber(xyz_i):
             rik   = r[k]
             cos_theta_jik = np.dot(v_rij,  v_rik) / (rij*rik)
             U3_sum += U3(rij, rik, cos_theta_jik)
-    U_total = U2_sum/2.0 + U3_sum
+    U_total = U2_sum/2.0 + U3_sum # The U2-sum is per-2-body-bond, thus we grant half to each atom
     return U_total
 
 def potentialEnergyGenerator(xyz_N, PES):
@@ -314,6 +314,12 @@ def createDataDumpBehlerSi():
         np.savetxt("SW_Behler_200000_n10.txt", dump_data, delimiter=',')
 
 def generate_symmfunc_input_Si_Behler():
+    # Rescale to a lower cutoff, i.e. 3.77118
+    scale_to_SW_cut = False
+    if scale_to_SW_cut:
+        print "!!NB!! USING SCALED BEHLER SYMMETRY FUNCTIONS"
+    SW_cut          = 3.77118
+    scale_fac       = (SW_cut / 6.0) * 0.99999999999999 # Make damn sure floats stay below cut
     # Behlers Si-values
     paramsForSymm = []
     with open("Important_data/behler_Si_symm_funcs.txt", "r") as open_file:
@@ -331,17 +337,22 @@ def generate_symmfunc_input_Si_Behler():
                 """
                 'G2', 2.0, 6.0, 0.0 # eta, cut, Rs
                 """
-                paramsForSymm.append([2] + list(linesplit[1:4]))
+                G2_params = np.array(linesplit[1:4], dtype=float)
+                if scale_to_SW_cut:
+                    G2_params[1:] *= scale_fac # cut AND Rs
+                paramsForSymm.append([2] + list(G2_params))
             elif linesplit[0] == "G4":
                 """
-                'G4', 0.01 , 6.0, 1, 1      # eta, cut, zeta, lambda
+                'G4', 0.01 , 6.0, 1, 1  # eta, cut, zeta, lambda
                 """
-                paramsForSymm.append([4] + list(linesplit[1:5]))
+                G4_params = np.array(linesplit[1:5], dtype=float)
+                if scale_to_SW_cut:
+                    G4_params[1] *= scale_fac # ONLY cut
+                paramsForSymm.append([4] + list(G4_params))
             else:
                 print linesplit[0], "not understood. Should be 'G2' or 'G4'..."
     assert tot_nmbr_symm == len(paramsForSymm)
     return paramsForSymm, tot_nmbr_symm
-
 
 def generate_symmfunc_input_Si_v1():
     sigma   = 2.0951
@@ -538,11 +549,11 @@ if __name__ == '__main__':
     """
     # Based on random structures, fixed/variable number of neighbors
     dumpToFile         = False
-    dumpMultiple       = False
+    dumpMultiple       = True
 
     # Structures from SW run in lammps
-    xyz_to_neigh_lists = True
-    dumpXYZ_file       = True # Own algo: "readXYZ_Files"
+    xyz_to_neigh_lists = False
+    dumpXYZ_file       = False # Own algo: "readXYZ_Files"
 
     # Unit tests
     testAngSymm        = False
@@ -556,7 +567,7 @@ if __name__ == '__main__':
         Takes XYZ files from LAMMPS dump and makes neighbor lists
         """
         cutoff         = 3.77118 # Stillinger-Weber
-        samples_per_dt = 1   # Integer value or "all"
+        samples_per_dt = 1       # Integer value or "all" (dont use "all" for very small systems!)
         test_boundary  = False   # Just use atoms wherever they are
         file_path = "Important_data/TestNN/enfil_sw_%sp%s.xyz" %(n_atoms,other_info)
         save_file = "Important_data/neigh_list_from_xyz_%sp%s.txt" %(n_atoms,other_info)
@@ -572,6 +583,7 @@ if __name__ == '__main__':
         if size == "all":
             save_filename = "SW_train_xyz_%sp%s_" %(n_atoms,other_info)
         NeighListDataToSymmToFile(open_filename, save_filename, size)
+
 
     if testLammps:
         filename = "Important_data/neighbours.txt"

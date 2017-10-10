@@ -1,5 +1,6 @@
 import tensorflow as tf
 import numpy as np
+from math import sqrt
 
 def init_weights(shape, layer, nameType, initMethod='normal'):
 
@@ -10,11 +11,11 @@ def init_weights(shape, layer, nameType, initMethod='normal'):
         return tf.Variable(tf.random_normal(shape), name=nameType+'%1d' % layer)
 
     else: # The Xavier-method
-        fanIn  = shape[0]
-        fanOut = shape[1]
-        low = -4*np.sqrt(6.0/(fanIn + fanOut)) # {sigmoid:4, tanh:1}
-        high = 4*np.sqrt(6.0/(fanIn + fanOut))
-        return tf.Variable(tf.random_uniform(shape, minval=low, maxval=high), \
+        fan_in  = shape[0]
+        fan_out = shape[1]
+        low_val = -4.0*sqrt(6.0/(fan_in + fan_out)) # {sigmoid:4, tanh:1}
+        high_val = 4.0*sqrt(6.0/(fan_in + fan_out))
+        return tf.Variable(tf.random_uniform(shape, minval=low_val, maxval=high_val), \
                            name=nameType+'%1d' % layer)
 
 

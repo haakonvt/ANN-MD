@@ -26,7 +26,7 @@ def test_structure_N_atom(neigh_cube, neural_network, plot_single=False, last_ti
 
     # Need Ep of all atoms in NN-calculation of forces:
     tot_nmbr_of_atoms = neigh_cube[0].shape[0]
-    Ep_NN_all_atoms   = [None]*3
+    Ep_NN_all_atoms   = [None]*tot_nmbr_of_atoms
     _, nmbr_G         = generate_symmfunc_input_Si_Behler()
     dNNdG_matrix      = np.zeros((tot_nmbr_of_atoms, nmbr_G))
 
@@ -54,7 +54,7 @@ def test_structure_N_atom(neigh_cube, neural_network, plot_single=False, last_ti
 
         # Finite difference derivative of NN:
         i_a       = 0 # Look at this particle only
-        off_value = 0.001
+        off_value = 0.0001
         num_force_atom_0 = [0,0,0]
         for fdir in [0,1,2]: # Force in direction x, y, z
             Ep_off = [0,0] # Reset Ep
@@ -65,14 +65,26 @@ def test_structure_N_atom(neigh_cube, neural_network, plot_single=False, last_ti
                     xyz_atom_centered = create_neighbour_list(xyz_c, cur_atom, return_self=False)
                     symm_vec          = neural_network.create_symvec_from_xyz(xyz_atom_centered)
                     Ep_off[i_off]    += neural_network(symm_vec) # Evaluates the NN
+            # print i2xyz(fdir), (Ep_off[1]-Ep_off[0])/(2*off_value)
             # Compute the force with central difference (Error: O(dx^2)) <-- big O-notation
             num_force_atom_0[fdir] = (Ep_off[1]-Ep_off[0])/(2*off_value)
 
+        # raw_input("ASDF")
+        # Compute Ep with no offset:
+        xyz_atom_centered = create_neighbour_list(xyz, 0, return_self=False)
+        symm_vec          = neural_network.create_symvec_from_xyz(xyz_atom_centered)
+        Ep_NN             = neural_network(symm_vec) # Evaluates the NN
+
         # Append all values to lists:
         Ep_SW_list.append(Ep_SW)
-        Ep_NN_list.append(Ep_NN_all_atoms[:]) # Pick out first atom (for comparison)
         Fvec_SW_list.append(Fvec_SW)
+
+        # Analytic NN:
+        # Ep_NN_list.append(Ep_NN_all_atoms[:]) # Pick out first atom (for comparison)
         # Fvec_NN_list.append(f_tot[0])
+
+        # Finite diff. derivatives:
+        Ep_NN_list.append(Ep_NN)
         Fvec_NN_list.append(num_force_atom_0)
 
         # Print out progress
@@ -87,6 +99,14 @@ def test_structure_N_atom(neigh_cube, neural_network, plot_single=False, last_ti
     # Return values for more plotting
     return Ep_SW_list, Ep_NN_list, tot_nmbr_of_atoms, Fvec_SW_list, Fvec_NN_list
 
+def i2xyz(i):
+    """ For easy reading of error checks """
+    if i == 0:
+        return "x"
+    elif i == 1:
+        return "y"
+    else:
+        return "z"
 
 if __name__ == '__main__':
     try:
@@ -125,7 +145,7 @@ if __name__ == '__main__':
                                             nn_eval, plot_single=False, last_timestep=last_timestep)
         # diff = np.mean(np.abs(np.array([i-j for i,j in zip(Ep_SW, Ep_NN[:,0])])))
         # print "Potential energy abs diff:", diff
-        plot_info = [Ep_SW, Ep_NN[:,0], N_atoms, nn_eval.what_epoch]
+        plot_info = [Ep_SW, Ep_NN, N_atoms, nn_eval.what_epoch]
         master_list.append(plot_info)
 
     # Plot each epoch in a new subplot:
@@ -142,11 +162,3 @@ if __name__ == '__main__':
 
     # Plot comparison of forces
     plotForcesSWvsNN(F_LAMMPS, F_NN, show=True)
-    # plotForcesSWvsNN(F_LAMMPS, np.array(F_NN)[:,0], show=True)
-    # plotForcesSWvsNN(F_LAMMPS, np.array(F_NN)[:,1], show=True)
-    # plotForcesSWvsNN(F_LAMMPS, np.array(F_NN)[:,2], show=True)
-    # for i in range(last_timestep):
-    #     print "Forces LAMMPS:", F_SW[i]
-    #     print "Forces, NN   :", F_NN[i]
-    #     print "Diff,        :", F_SW[i]-F_NN[i], "\n"
-    #     raw_input("ASDF")
