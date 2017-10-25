@@ -395,14 +395,13 @@ void PairNNP::compute(int eflag, int vflag){
         // Compute all G2 pair forces at once:
         ddR_G2_vec = -1.0*ddG_E(0,sf)*ddR_G2_vec/Rij;
 
-        // Apply Newton's third law to all (neighbour) pairs, p:
-        for (p = 0; p < n; ++p){
+        for (p = 0; p < n; ++p){ // Loop over all pairs, p
           fpair    = ddR_G2_vec(0,p);
           f[i][0] -= fpair*dRij(0,p); // Sum up on atom i
           f[i][1] -= fpair*dRij(1,p);
           f[i][2] -= fpair*dRij(2,p);
 
-          // Add to specific neighbour only:
+          // Add to specific neighbour only: (by N3L)
           f[tagsj[p]][0] += fpair*dRij(0,p);
           f[tagsj[p]][1] += fpair*dRij(1,p);
           f[tagsj[p]][2] += fpair*dRij(2,p);
@@ -513,9 +512,9 @@ void PairNNP::coeff(int narg, char **arg){
 void PairNNP::init_style()
 {
   if (atom->tag_enable == 0)
-    error->all(FLERR,"Pair style NN requires atom IDs");
-  // if (force->newton_pair == 0)
-  //   error->all(FLERR,"Pair style Stillinger-Weber requires newton pair on");
+    error->all(FLERR,"Pair style NNP requires atom IDs");
+  if (force->newton_pair == 0)
+    error->all(FLERR,"Pair style NNP requires newton pair on");
 
   // We use atom-centred, so a full neighbour list is needed:
   int irequest = neighbor->request(this,instance_me);
