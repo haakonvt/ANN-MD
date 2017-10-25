@@ -560,12 +560,12 @@ if __name__ == '__main__':
     testLammps         = False
     testClass          = False
 
-    n_atoms    = int(raw_input("Number of atoms? "))
-    other_info = "" # i.e. "no_3_body"
     if xyz_to_neigh_lists:
         """
         Takes XYZ files from LAMMPS dump and makes neighbor lists
         """
+        n_atoms    = int(raw_input("Number of atoms? "))
+        other_info = "" # i.e. "no_3_body"
         cutoff         = 3.77118 # Stillinger-Weber
         samples_per_dt = 1       # Integer value or "all" (dont use "all" for very small systems!)
         test_boundary  = False   # Just use atoms wherever they are
@@ -577,6 +577,8 @@ if __name__ == '__main__':
         """
         Takes neighbour lists and makes symmetry data / training data
         """
+        n_atoms    = int(raw_input("Number of atoms? "))
+        other_info = "" # i.e. "no_3_body"
         size          = "all" # should be <= rows in file!!!!
         open_filename = "Important_data/neigh_list_from_xyz_%sp%s.txt" %(n_atoms,other_info)
         save_filename = "SW_train_xyz_%s.txt" %str(size)
@@ -626,9 +628,9 @@ if __name__ == '__main__':
             print "\nComputation took: %.2f seconds" %t1
 
     if dumpMultiple:
-        size = 2000 # PER single value in neigh_list
-        # neigh_list = [4]*2 + [5]*6 + [6]*13 + [7]*14 + [8]*9 + [9]*3 + [10] # len: 48
-        neigh_list = [1,2,2,2]
+        size = 500 # PER single value in neigh_list
+        neigh_list = [4]*2 + [5]*6 + [6]*13 + [7]*14 + [8]*9 + [9]*3 + [10] # len: 48
+        # neigh_list = [1,2,2,2]
         t0_tot = timer()
         PES = PES_Stillinger_Weber
         for ID,neighbors in enumerate(neigh_list):

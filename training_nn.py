@@ -21,7 +21,7 @@ import signal # Catch ctrl+c
 
 def train_neural_network(x, y, epochs, nNodes, hiddenLayers, batchSize, testSize,
                      learning_rate=0.001, loss_function="L2", activation_function="sigmoid",
-                     potential_name=""):
+                     potential_name="",verbose=True,grid_search_flag=False):
     # Allow for Ctrl+C to stop training early (and/or continue anyway)
     global quit_now; quit_now = False
     def signal_handler(signal, frame):
@@ -53,7 +53,7 @@ def train_neural_network(x, y, epochs, nNodes, hiddenLayers, batchSize, testSize
     # Begin session
     with tf.Session() as sess:
         # Setup of graph for later computation with tensorflow
-        prediction, weights, biases, neurons = neuralNetwork(x)
+        prediction, weights, biases, neurons = neural_network(x)
         if   loss_function == "L2": # Train with RMSE error
             cost = tf.nn.l2_loss(prediction-y)
         elif loss_function == "L1": # Train with L1 norm
@@ -115,18 +115,20 @@ def train_neural_network(x, y, epochs, nNodes, hiddenLayers, batchSize, testSize
                             p_imrove    = 1.015 # Write out progress more often at the end
                             print_often = True
                         bestTrainLoss = trainRMSE
-                        sys.stdout.write('\r' + ' '*60) # White out line
-                        sys.stdout.write('\r%3d/%3d. RMSE: train: %10g, test: %10g\n' % \
-                                        (epoch+1, numberOfEpochs, trainRMSE, testRMSE))
-                        sys.stdout.flush()
+                        if verbose:
+                            sys.stdout.write('\r' + ' '*60) # White out line
+                            sys.stdout.write('\r%3d/%3d. RMSE: train: %10g, test: %10g\n' % \
+                                            (epoch+1, numberOfEpochs, trainRMSE, testRMSE))
+                            sys.stdout.flush()
 
                         # If saving is enabled, save the graph variables ('w', 'b')
                         if saveFlag and epoch > 0.7*(numberOfEpochs-1): # When 30 % epochs left, write TF restart file
                             saver.save(sess, saveFileName + str(epoch+1), write_meta_graph=False)
                         if saveFlag: # and (epoch > 0.7*(numberOfEpochs-1) or epoch == numberOfEpochs-1): # Save last edition of NN (weights & biases)
                             saveGraphFunc(sess, weights, biases, epoch+1, hiddenLayers, nNodes, save_dir, activation_function)
-    sys.stdout.write('\n' + ' '*60 + '\n') # White out line for sake of pretty command line output lol
-    sys.stdout.flush()
+    if verbose:
+        sys.stdout.write('\n' + ' '*60 + '\n') # White out line for sake of pretty command line output lol
+        sys.stdout.flush()
 
     # End timing
     wall_time = timer() - t0
@@ -141,13 +143,16 @@ def train_neural_network(x, y, epochs, nNodes, hiddenLayers, batchSize, testSize
 
         # Mark data from this simulation/training as worthy to keep?
         keepData(save_dir)
-    return wall_time
+    if grid_search_flag:
+        return wall_time, bestTrainLoss
+    else:
+        return wall_time
 
 
 def example_Stillinger_Weber():
     # Get filename of traindata and number of epochs from command line
     global filename, saveFlag, loadPath
-    filename, epochs, nodes, hiddenLayers, saveFlag, loadPath = parseCommandLine()
+    filename, epochs, nodes, hiddenLayers, saveFlag, loadPath = parse_command_line()
 
     # Number of symmetry functions describing local env. of atom i
     _, symm_vec_length = generate_symmfunc_input_Si_Behler()
@@ -174,8 +179,8 @@ def example_Stillinger_Weber():
     x = tf.placeholder('float', shape=(None, input_vars),  name="x")
     y = tf.placeholder('float', shape=(None, output_vars), name="y")
 
-    global neuralNetwork
-    neuralNetwork = lambda data: nns.model(data,
+    global neural_network
+    neural_network = lambda data: nns.model(data,
                                            activation_function = activation_function,
                                            nNodes              = nodes,
                                            hiddenLayers        = hiddenLayers,
@@ -225,7 +230,70 @@ def example_Lennard_Jones():
     _, input_vars = generate_symmfunc_input_LJ(sigma)
     #TODO: To be implemented...
 
-def parseCommandLine():
+def grid_search_SW():
+    """
+    Create some benchmark settings, then iterate whole training phase
+    for each set of hyper.settings.
+    """
+    global filename, saveFlag, loadPath
+    # filename  = "Important_data/SW_train_xyz_4p_10000.txt"
+    filename  = "SW_train_manyneigh_24000.txt"
+    saveFlag  = False
+    loadPath  = ""
+
+    epochs    = 20
+    testSize  = 4000        # Should be 20-30 % of total train data
+    batchSize = 500         # Train size is determined by length of loaded file
+    learning_rate = 0.05   # Set the learning rate. Standard value: 0.001
+
+    activation_function = "sigmoid"
+    loss_function       = "L2"
+
+    _, symm_vec_length = generate_symmfunc_input_Si_Behler() # Load symm.functions
+    input_vars  = symm_vec_length   # Number of inputs = number of symm.funcs. used
+    output_vars = 1                 # Potential energy of atom i
+
+    """
+    Do grid search!
+    """
+    run_each_test = 10
+    nodes_list = [2,3,5,10,40]
+    # hl_list    = [1,2,3,4,5]
+    # nodes_list = [2,2,2,2,2]
+    hl_list    = [1,2,3,5]
+    sys.stdout.write("Initiating hyperparameter grid search!"); sys.stdout.flush()
+    for hdnlayrs in hl_list: # Number of hidden layers (In addition to input- and output layer)
+        for nodes in nodes_list: # Nodes per hidden layer
+            cur_best_loss = 1E100
+            best_loss_avg = 0
+            wall_time_avg = 0
+            for i in range(run_each_test):
+                # Make sure we start out with a fresh graph
+                tf.reset_default_graph()
+
+                # Create placeholders for the input and output variables
+                x = tf.placeholder('float', shape=(None, input_vars),  name="x")
+                y = tf.placeholder('float', shape=(None, output_vars), name="y")
+
+                global neural_network
+                neural_network = lambda data: nns.model(data, activation_function = activation_function, nNodes = nodes,
+                                                              hiddenLayers = hdnlayrs, inputs = input_vars, outputs = output_vars,
+                                                              wInitMethod = 'normal', bInitMethod = 'normal')
+                wall_time, bestTrainLoss = train_neural_network(x, y, epochs, nodes, hdnlayrs, batchSize, testSize,
+                                                 learning_rate, loss_function, activation_function, "SW", verbose=False, grid_search_flag=True)
+                wall_time_avg += wall_time
+                best_loss_avg += bestTrainLoss
+                if bestTrainLoss < cur_best_loss:
+                    cur_best_loss = bestTrainLoss
+            wall_time_avg /= run_each_test # Now its an average
+            best_loss_avg /= run_each_test # Now its an average
+            sys.stdout.write("\nHdn.lay: %g, nodes/hl.: %g, Best loss: %g, Avg. loss: %g, Avg. time: %g" \
+                              %(hdnlayrs, nodes, cur_best_loss, best_loss_avg, wall_time_avg))
+            sys.stdout.flush()
+    sys.stdout.write("\n"); sys.stdout.flush()
+
+
+def parse_command_line():
     def error_and_exit():
         print "Usage:"
         print ">>> python training_nn.py FILENAME   EPOCHS NODES HDNLAYER SAVE LOAD"
@@ -259,8 +327,10 @@ if __name__ == '__main__':
 
     # Example 2: Silicon
     # Potential: Stillinger-Weber
-    if True:
+    if False:
         save_dir = example_Stillinger_Weber()
+    if True:
+        grid_search_SW()
 
     # Example 3: SiC (Silicon Carbide)
     # Potential: Vashista
