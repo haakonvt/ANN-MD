@@ -238,13 +238,13 @@ def grid_search_SW():
     global filename, saveFlag, loadPath
     # filename  = "Important_data/SW_train_xyz_4p_10000.txt"
     filename  = "SW_train_manyneigh_24000.txt"
-    saveFlag  = False
+    saveFlag  = True
     loadPath  = ""
 
-    epochs    = 20
-    testSize  = 4000        # Should be 20-30 % of total train data
-    batchSize = 500         # Train size is determined by length of loaded file
-    learning_rate = 0.05   # Set the learning rate. Standard value: 0.001
+    epochs    = 50*52
+    testSize  = 4000         # Should be 20-30 % of total train data
+    batchSize = 6000         # Train size is determined by length of loaded file
+    learning_rate = 0.001    # Set the learning rate. Standard value: 0.001
 
     activation_function = "sigmoid"
     loss_function       = "L2"
@@ -256,40 +256,43 @@ def grid_search_SW():
     """
     Do grid search!
     """
-    run_each_test = 10
-    nodes_list = [2,3,5,10,40]
-    # hl_list    = [1,2,3,4,5]
-    # nodes_list = [2,2,2,2,2]
-    hl_list    = [1,2,3,5]
-    sys.stdout.write("Initiating hyperparameter grid search!"); sys.stdout.flush()
+    run_each_test = 1
+    nodes_list = [35]
+    hl_list    = [2]
+    lr_list    = [0.001] #10**np.linspace(-5,1,10)
+    mb_sizes   = [20,50,100,1000,5000,20000]
+    sys.stdout.write("Initiating hyperparameter grid search!\n"); sys.stdout.flush()
     for hdnlayrs in hl_list: # Number of hidden layers (In addition to input- and output layer)
         for nodes in nodes_list: # Nodes per hidden layer
-            cur_best_loss = 1E100
-            best_loss_avg = 0
-            wall_time_avg = 0
-            for i in range(run_each_test):
-                # Make sure we start out with a fresh graph
-                tf.reset_default_graph()
+            for learning_rate in lr_list:
+                for batchSize in mb_sizes:
+                    cur_best_loss = 1E100
+                    best_loss_avg = 0
+                    wall_time_avg = 0
+                    for i in range(run_each_test):
+                        # Make sure we start out with a fresh graph
+                        tf.reset_default_graph()
 
-                # Create placeholders for the input and output variables
-                x = tf.placeholder('float', shape=(None, input_vars),  name="x")
-                y = tf.placeholder('float', shape=(None, output_vars), name="y")
+                        # Create placeholders for the input and output variables
+                        x = tf.placeholder('float', shape=(None, input_vars),  name="x")
+                        y = tf.placeholder('float', shape=(None, output_vars), name="y")
 
-                global neural_network
-                neural_network = lambda data: nns.model(data, activation_function = activation_function, nNodes = nodes,
-                                                              hiddenLayers = hdnlayrs, inputs = input_vars, outputs = output_vars,
-                                                              wInitMethod = 'normal', bInitMethod = 'normal')
-                wall_time, bestTrainLoss = train_neural_network(x, y, epochs, nodes, hdnlayrs, batchSize, testSize,
-                                                 learning_rate, loss_function, activation_function, "SW", verbose=False, grid_search_flag=True)
-                wall_time_avg += wall_time
-                best_loss_avg += bestTrainLoss
-                if bestTrainLoss < cur_best_loss:
-                    cur_best_loss = bestTrainLoss
-            wall_time_avg /= run_each_test # Now its an average
-            best_loss_avg /= run_each_test # Now its an average
-            sys.stdout.write("\nHdn.lay: %g, nodes/hl.: %g, Best loss: %g, Avg. loss: %g, Avg. time: %g" \
-                              %(hdnlayrs, nodes, cur_best_loss, best_loss_avg, wall_time_avg))
-            sys.stdout.flush()
+                        global neural_network
+                        neural_network = lambda data: nns.model(data, activation_function = activation_function, nNodes = nodes,
+                                                                      hiddenLayers = hdnlayrs, inputs = input_vars, outputs = output_vars,
+                                                                      wInitMethod = 'normal', bInitMethod = 'normal')
+                        wall_time, bestTrainLoss = train_neural_network(x, y, epochs, nodes, hdnlayrs, batchSize, testSize,
+                                                         learning_rate, loss_function, activation_function, "SW", verbose=False, grid_search_flag=True)
+                        wall_time_avg += wall_time
+                        best_loss_avg += bestTrainLoss
+                        if bestTrainLoss < cur_best_loss:
+                            cur_best_loss = bestTrainLoss
+                        # raw_input("\nHit enter for next iteration!\n")
+                    wall_time_avg /= run_each_test # Now its an average
+                    best_loss_avg /= run_each_test # Now its an average
+                    sys.stdout.write("HL: %g, N/L: %g, LR: %g, B.size: %g, Min.cost: %g, Avg.cost: %g, Avg. time: %g\n" \
+                                      %(hdnlayrs, nodes, learning_rate, batchSize, cur_best_loss, best_loss_avg, wall_time_avg))
+                    sys.stdout.flush()
     sys.stdout.write("\n"); sys.stdout.flush()
 
 
@@ -327,9 +330,9 @@ if __name__ == '__main__':
 
     # Example 2: Silicon
     # Potential: Stillinger-Weber
-    if False:
-        save_dir = example_Stillinger_Weber()
     if True:
+        save_dir = example_Stillinger_Weber()
+    if False:
         grid_search_SW()
 
     # Example 3: SiC (Silicon Carbide)

@@ -65,9 +65,10 @@ def G4(xyz, rc, eta, zeta, lambda_c, cutoff=cutoff_cos):
     r_cut     = cutoff(r,rc)
     summation = 0
     for j in range(N):
-        for k in range(N): # This double counts angles... as in the litterature
-            if j == k:
-                continue # Skip j=k
+        # for k in range(N): # This double counts angles... as in the litterature
+            # if j == k:
+            #     continue # Skip j=k
+        for k in range(j+1,N): # Away with stupid double counting
             r_jk       = np.linalg.norm(xyz[j] - xyz[k])
             cos_theta  = np.dot(xyz[j],xyz[k]) / (r[j]*r[k])
             cutoff_ijk = r_cut[j] * r_cut[k] * cutoff(r_jk, rc)
@@ -88,9 +89,10 @@ def G5(xyz, rc, eta, zeta, lambda_c, cutoff=cutoff_cos):
     r_cut     = cutoff(r,rc)
     summation = 0
     for j in range(N):
-        for k in range(N): # This double counts angles... as in the litterature
-            if j == k:
-                continue # Skip j=k
+        # for k in range(N): # This double counts angles... as in the litterature
+            # if j == k:
+            #     continue # Skip j=k
+        for k in range(j+1,N): # Away with stupid double counting
             cos_theta  = np.dot(xyz[j],xyz[k]) / (r[j]*r[k])
             cutoff_ijk = r_cut[j] * r_cut[k]
             part_sum   = (1+lambda_c * cos_theta)**zeta * exp(-eta*(r[j]**2+r[k]**2))

@@ -127,6 +127,14 @@ def symmetryTransformBehler(all_params_list, xyz):
             """
             eta, rc, zeta, lambd = cur_param_set[1:5] # notice not same order
             G_output.append( G4(xyz, float(rc), float(eta), float(zeta), float(lambd)) )
+        elif cur_param_set[0] == 5:
+            """
+            ### This is G5 ###
+            ### Variables:
+                - rc, eta, zeta, lambd
+            """
+            eta, rc, zeta, lambd = cur_param_set[1:5] # notice not same order
+            G_output.append( G5(xyz, float(rc), float(eta), float(zeta), float(lambd)) )
         else:
             print "Symm.func. number:", cur_param_set[0], "was not understood. Input 2 or 4..."
     return np.array(G_output)

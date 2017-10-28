@@ -54,7 +54,7 @@ def test_structure_N_atom(neigh_cube, neural_network, plot_single=False, last_ti
 
         # Finite difference derivative of NN:
         i_a       = 0 # Look at this particle only
-        off_value = 0.0001
+        off_value = 0.000001
         num_force_atom_0 = [0,0,0]
         for fdir in [0,1,2]: # Force in direction x, y, z
             Ep_off = [0,0] # Reset Ep
@@ -69,7 +69,6 @@ def test_structure_N_atom(neigh_cube, neural_network, plot_single=False, last_ti
             # Compute the force with central difference (Error: O(dx^2)) <-- big O-notation
             num_force_atom_0[fdir] = (Ep_off[1]-Ep_off[0])/(2*off_value)
 
-        # raw_input("ASDF")
         # Compute Ep with no offset:
         xyz_atom_centered = create_neighbour_list(xyz, 0, return_self=False)
         symm_vec          = neural_network.create_symvec_from_xyz(xyz_atom_centered)
@@ -95,7 +94,7 @@ def test_structure_N_atom(neigh_cube, neural_network, plot_single=False, last_ti
     Ep_SW_list = np.array(Ep_SW_list)
     Ep_NN_list = np.array(Ep_NN_list)
     if plot_single:
-        plotErrorEvolutionSWvsNN(Ep_SW_list, Ep_NN_list[:,0], tot_nmbr_of_atoms)
+        plotErrorEvolutionSWvsNN(Ep_SW_list, Ep_NN_list, tot_nmbr_of_atoms)
     # Return values for more plotting
     return Ep_SW_list, Ep_NN_list, tot_nmbr_of_atoms, Fvec_SW_list, Fvec_NN_list
 
@@ -119,7 +118,7 @@ if __name__ == '__main__':
         print "- M is the last timestep"
         sys.exit(0)
     n_atoms    = int(raw_input("Number of atoms? "))
-    path_to_file = "Important_data/TestNN/enfil_sw_%dp.xyz" %n_atoms
+    path_to_file = "Important_data/Test_nn/enfil_sw_%dp.xyz" %n_atoms
     neigh_cube   = readXYZ_Files(path_to_file, "no-save-file.txt", return_array=True)
     loadPath     = findPathToData(find_tf_savefile=True)
     master_list  = []
@@ -142,7 +141,7 @@ if __name__ == '__main__':
     for i in range(N):
         nn_eval = neural_network(loadPath, sigmoid, ddx_sig)
         Ep_SW, Ep_NN, N_atoms, F_SW, F_NN = test_structure_N_atom(neigh_cube,
-                                            nn_eval, plot_single=False, last_timestep=last_timestep)
+                                            nn_eval, plot_single=plot_single, last_timestep=last_timestep)
         # diff = np.mean(np.abs(np.array([i-j for i,j in zip(Ep_SW, Ep_NN[:,0])])))
         # print "Potential energy abs diff:", diff
         plot_info = [Ep_SW, Ep_NN, N_atoms, nn_eval.what_epoch]

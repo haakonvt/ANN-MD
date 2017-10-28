@@ -1,3 +1,8 @@
+# -*- coding: utf-8 -*-
+from __future__ import unicode_literals
+from matplotlib import rc
+rc('text.latex', unicode=True)
+
 import matplotlib.pyplot as plt
 import numpy as np
 import datetime # Making unique names for plots
@@ -31,34 +36,40 @@ def plotErrorEvolutionSWvsNN(EP_SW_list, EP_NN_list, nmbr_of_atoms):
     arr_diff    =  EP_NN_list - EP_SW_list
     arr_rel_err = (EP_SW_list - EP_NN_list)/EP_SW_list
 
-    plt.suptitle("Tot. atoms: %d" %nmbr_of_atoms)
+    plt.suptitle("%d-atom system" %nmbr_of_atoms, fontsize=18)
     plt.subplot(3,1,1)
+
     plt.plot(EP_SW_list, label="SW")
-    plt.plot(EP_NN_list, label="NN")#, markevery=5) #, lw=2.0)
-    plt.ylabel("Potential Energy")
-    plt.legend()
+    plt.plot(EP_NN_list, label="NNP")#, markevery=5) #, lw=2.0)
+    plt.ylabel("Potential Energy [eV]")
+    plt.legend(loc="lower right")
     plt.subplot(3,1,2)
-    plt.plot(arr_diff, label="NN - NN")
+    plt.plot(arr_diff, label="SW - NNP")
     plt.ylabel("Absolute Error")
-    plt.legend()
+    plt.legend(loc="upper right")
     plt.subplot(3,1,3)
-    plt.plot(arr_rel_err, label="(SW - NN) / SW")
+    plt.plot(arr_rel_err, label="(SW - NNP) / SW")
     plt.ylabel("Relative Error")
     plt.xlabel("Timestep")
-    plt.legend()
+    plt.legend(loc="upper right")
+
+    plt.subplots_adjust(left=0.14,bottom=0.11,right=0.97,top=0.91,wspace=0.3,hspace=0.22)
     plt.show()
 
 def plotEvolutionSWvsNN_N_diff_epochs(N, master_list):
-    plt.suptitle("Tot. atoms: %d" %(master_list[0][2]))
+    # plt.suptitle("Tot. atoms: %d" %(master_list[0][2]))
+    plt.suptitle("Evolution of NNP", fontsize=18)
     for i in range(1,N+1):
         plt.subplot(N,1,i) # Stack vertically
         EP_SW = np.array(master_list[i-1][0], dtype=float)
         EP_NN = np.array(master_list[i-1][1], dtype=float)
-        plt.title("NN after %d epochs" %(master_list[i-1][3]))
+        plt.title("NNP after %d epochs" %(master_list[i-1][3]))
+        # plt.semilogy(np.abs(EP_SW-EP_NN), label="|SW-NNP|")
         plt.plot(EP_SW, label="SW")
-        plt.plot(EP_NN, label="NN")#, markevery=5) #, lw=2.0)
+        plt.plot(EP_NN, label="NNP")#, markevery=5) #, lw=2.0)
         plt.ylabel("Potential Energy")
         plt.legend()
+    plt.subplots_adjust(left=0.09,bottom=0.05,right=0.98,top=0.93,hspace=0.33)
     plt.show()
 
 def plotForcesSWvsNN(F_SW, F_NN, show=True):
@@ -68,60 +79,60 @@ def plotForcesSWvsNN(F_SW, F_NN, show=True):
     F_SW_tot = np.linalg.norm(F_SW, axis=1)
     F_NN_tot = np.linalg.norm(F_NN, axis=1)
 
-    plt.suptitle("Forces SW vs NN")
+    plt.suptitle("Forces SW vs NNP", fontsize=18)
 
     plt.subplot(4,2,1)
     plt.plot(F_SW_tot, label="SW")
-    plt.plot(F_NN_tot, label="NN")
-    plt.ylabel("Tot. force: |F|")
+    plt.plot(F_NN_tot, label="NNP")
+    plt.ylabel(r"Tot. force [eV/\u00C5]")
     plt.legend()
 
     plt.subplot(4,2,2)
-    plt.plot((F_SW_tot-F_NN_tot), label="SW-NN")
-    plt.ylabel("Abs. error: Tot. force: |F|")
-    plt.legend()
+    plt.plot((F_SW_tot-F_NN_tot), label="SW-NNP")
+    plt.ylabel("Abs. error: Tot. force")
+    plt.legend(loc="upper right")
 
     plt.subplot(4,2,3)
-    plt.plot(F_SW[:,0], label="SW")
-    plt.plot(F_NN[:,0], label="NN")
+    plt.plot(F_SW[:,0])#, label="SW")
+    plt.plot(F_NN[:,0])#, label="NNP")
     plt.ylabel("Forces X")
-    plt.legend()
+    plt.legend(loc="upper right")
 
     plt.subplot(4,2,4)
-    plt.plot((F_SW[:,0]-F_NN[:,0]), label="SW-NN")
+    plt.plot((F_SW[:,0]-F_NN[:,0]))#, label="SW-NNP")
     plt.ylabel("Abs. error: Forces X")
-    plt.legend()
+    plt.legend(loc="upper right")
 
     plt.subplot(4,2,5)
-    plt.plot(F_SW[:,1], label="SW")
-    plt.plot(F_NN[:,1], label="NN")
+    plt.plot(F_SW[:,1])#, label="SW")
+    plt.plot(F_NN[:,1])#, label="NNP")
     plt.ylabel("Forces Y")
-    plt.legend()
+    plt.legend(loc="upper right")
 
     plt.subplot(4,2,6)
-    plt.plot((F_SW[:,1]-F_NN[:,1]), label="SW-NN")
+    plt.plot((F_SW[:,1]-F_NN[:,1]))#, label="SW-NNP")
     plt.ylabel("Abs. error: Forces Y")
-    plt.legend()
+    plt.legend(loc="upper right")
 
     plt.subplot(4,2,7)
-    plt.plot(F_SW[:,2], label="SW")
-    plt.plot(F_NN[:,2], label="NN")
+    plt.plot(F_SW[:,2])#, label="SW")
+    plt.plot(F_NN[:,2])#, label="NNP")
     plt.ylabel("Forces Z")
     plt.xlabel("Timestep")
-    plt.legend()
+    plt.legend(loc="upper right")
 
     plt.subplot(4,2,8)
-    plt.plot((F_SW[:,2]-F_NN[:,2]), label="SW-NN")
+    plt.plot((F_SW[:,2]-F_NN[:,2]))#, label="SW-NNP")
     plt.ylabel("Abs. error: Forces Z")
     plt.xlabel("Timestep")
-    plt.legend()
+    plt.legend(loc="upper right")
     # name = datetime.datetime.now().strftime("%H-%M-%S-%d-%m-%Y") + ".pdf"
     # plt.savefig(name)
     if show:
         plt.show()
 
 def plotLAMMPSforces1atomEvo(show=False):
-    file_dir  = "Important_data/TestNN/Forces/"
+    file_dir  = "Important_data/Test_nn/Forces/"
     file_list = glob.glob(file_dir+"dump_forces*")
     count = 0
     force_list = []

@@ -167,7 +167,7 @@ def readXYZ_Files(path_to_file, save_name, samples_per_dt=30, cutoff=3.77118,
                   test_boundary=True, return_array=False):
     """
     Create the master list.
-    Neighbouring atoms will vary, so I use a nested list
+    Neighbouring atoms may vary, so I use a nested list
     """
     print "\nReading XYZ-file:"
     print '"%s"' %path_to_file

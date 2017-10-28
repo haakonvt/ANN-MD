@@ -315,7 +315,7 @@ def createDataDumpBehlerSi():
 
 def generate_symmfunc_input_Si_Behler():
     # Rescale to a lower cutoff, i.e. 3.77118
-    scale_to_SW_cut = False
+    scale_to_SW_cut = False         # NOTICE ME SENPAI
     if scale_to_SW_cut:
         print "!!NB!! USING SCALED BEHLER SYMMETRY FUNCTIONS"
     SW_cut          = 3.77118
@@ -349,8 +349,16 @@ def generate_symmfunc_input_Si_Behler():
                 if scale_to_SW_cut:
                     G4_params[1] *= scale_fac # ONLY cut
                 paramsForSymm.append([4] + list(G4_params))
+            elif linesplit[0] == "G5":
+                """
+                'G5', 0.01 , 6.0, 1, 1  # eta, cut, zeta, lambda
+                """
+                G5_params = np.array(linesplit[1:5], dtype=float)
+                if scale_to_SW_cut:
+                    G4_params[1] *= scale_fac # ONLY cut
+                paramsForSymm.append([5] + list(G5_params))
             else:
-                print linesplit[0], "not understood. Should be 'G2' or 'G4'..."
+                print linesplit[0], "not understood. Should be 'G2', 'G4' or 'G5'..."
     assert tot_nmbr_symm == len(paramsForSymm)
     return paramsForSymm, tot_nmbr_symm
 
@@ -456,8 +464,8 @@ def NeighListDataToSymmToFile(open_filename, save_filename, size):
         File looks like this
         x1 y1 z1 r1^2 x2 y2 z2 r2^2 ... xN yN zN rN^2 Ep
         """
-        # G_funcs, nmbr_G = generate_symmfunc_input_Si_v1()
-        G_funcs, nmbr_G = generate_symmfunc_input_Si_Behler()
+        # G_funcs, nmbr_G = generate_symmfunc_input_Si_v1()   # Bad, don't use :)
+        G_funcs, nmbr_G = generate_symmfunc_input_Si_Behler() # Read from file, cleaner
         xTrain          = np.zeros((size, nmbr_G))
         for i,row in enumerate(lammps_file):
             if i >= size:
@@ -549,27 +557,29 @@ if __name__ == '__main__':
     """
     # Based on random structures, fixed/variable number of neighbors
     dumpToFile         = False
-    dumpMultiple       = True
+    dumpMultiple       = False
 
     # Structures from SW run in lammps
-    xyz_to_neigh_lists = False
-    dumpXYZ_file       = False # Own algo: "readXYZ_Files"
+    xyz_to_neigh_lists = True
+    dumpXYZ_file       = True # From own algo: "readXYZ_Files"
 
     # Unit tests
     testAngSymm        = False
     testLammps         = False
     testClass          = False
 
+    if xyz_to_neigh_lists or dumpXYZ_file:
+        n_atoms    = int(raw_input("Number of atoms? "))
+
     if xyz_to_neigh_lists:
         """
         Takes XYZ files from LAMMPS dump and makes neighbor lists
         """
-        n_atoms    = int(raw_input("Number of atoms? "))
         other_info = "" # i.e. "no_3_body"
         cutoff         = 3.77118 # Stillinger-Weber
         samples_per_dt = 1       # Integer value or "all" (dont use "all" for very small systems!)
         test_boundary  = False   # Just use atoms wherever they are
-        file_path = "Important_data/TestNN/enfil_sw_%sp%s.xyz" %(n_atoms,other_info)
+        file_path = "Important_data/Test_nn/enfil_sw_%sp%s.xyz" %(n_atoms,other_info)
         save_file = "Important_data/neigh_list_from_xyz_%sp%s.txt" %(n_atoms,other_info)
         readXYZ_Files(file_path, save_file, samples_per_dt, cutoff, test_boundary)
 
@@ -577,7 +587,6 @@ if __name__ == '__main__':
         """
         Takes neighbour lists and makes symmetry data / training data
         """
-        n_atoms    = int(raw_input("Number of atoms? "))
         other_info = "" # i.e. "no_3_body"
         size          = "all" # should be <= rows in file!!!!
         open_filename = "Important_data/neigh_list_from_xyz_%sp%s.txt" %(n_atoms,other_info)
