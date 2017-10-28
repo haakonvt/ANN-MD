@@ -44,7 +44,7 @@ def plotErrorEvolutionSWvsNN(EP_SW_list, EP_NN_list, nmbr_of_atoms):
     plt.ylabel("Potential Energy [eV]")
     plt.legend(loc="lower right")
     plt.subplot(3,1,2)
-    plt.plot(arr_diff, label="SW - NNP")
+    plt.plot(arr_diff, label="NNP - SW")
     plt.ylabel("Absolute Error")
     plt.legend(loc="upper right")
     plt.subplot(3,1,3)

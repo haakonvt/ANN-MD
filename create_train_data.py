@@ -41,7 +41,7 @@ def PES_Stillinger_Weber(xyz_i):
     """
     xyz = xyz_i
     r = np.linalg.norm(xyz, axis=1)
-    N = len(r) # Number of neighbors for atom i, which we are currently inspecting
+    N = len(r) # Number of neighbours for atom i, which we are currently inspecting
 
     # A lot of definitions first
     A = 7.049556277
@@ -112,20 +112,20 @@ def potentialEnergyGenerator(xyz_N, PES):
 def potentialEnergyGeneratorSingleNeigList(xyz_i, PES):
     return PES(xyz_i)
 
-def createXYZ(r_min, r_max, size, neighbors=7, histogramPlot=False, verbose=False):
+def createXYZ(r_min, r_max, size, neighbours=7, histogramPlot=False, verbose=False):
     """
-    # Input:  Size of train and test size + number of neighbors
-    # Output: xyz-neighbors-matrix of size 'size'
+    # Input:  Size of train and test size + number of neighbours
+    # Output: xyz-neighbours-matrix of size 'size'
 
-    Generates random numbers with x,y,z that can be [0,r_max] with r in [r_min, r_max]
+    Generates random numbers with x,y,z that can be [-r_max,r_max] with r in [r_min, r_max]
     """
     if verbose:
-        print "Creating XYZ-neighbor-data for:\n - Neighbors: %d \n - Samples  : %d" %(neighbors,size)
+        print "Creating XYZ-neighbor-data for:\n - Neighbors: %d \n - Samples  : %d" %(neighbours,size)
         print "-------------------------------"
 
-    xyz_N = np.zeros((neighbors,3,size))
+    xyz_N = np.zeros((neighbours,3,size))
     xyz   = np.zeros((size,3))
-    for i in range(neighbors): # Fill cube slice for each neighbor (quicker than "size")
+    for i in range(neighbours): # Fill cube slice for each neighbor (quicker than "size")
         r2       = np.random.uniform(r_min, r_max,       size)**2
         xyz[:,0] = np.random.uniform(0,     r2,          size)
         xyz[:,1] = np.random.uniform(0,     r2-xyz[:,0], size)
@@ -140,12 +140,86 @@ def createXYZ(r_min, r_max, size, neighbors=7, histogramPlot=False, verbose=Fals
         plt.subplot(3,1,1);plt.hist(xyz_N[:,0,:].ravel(),bins=70);plt.subplot(3,1,2);plt.hist(xyz_N[:,1,:].ravel(),bins=70);plt.subplot(3,1,3);plt.hist(xyz_N[:,2,:].ravel(),bins=70);plt.show()
     return xyz_N
 
-def createTrainData(size, neighbors, PES, verbose=False):
+def createXYZ_uni_MC(r_min, r_max, size, neighbours=7, histogramPlot=False, verbose=False):
+    """
+    # Input:  Size of train and test size + number of neighbours
+    # Output: xyz-neighbours-matrix of size 'size'
+
+    Generates uniform random numbers inside a sphere with Monte Carlo
+    sampling with x,y,z that can be [0,r_max] with r in [r_min, r_max]
+    """
+    if verbose:
+        print "Creating XYZ-neighbor-data for:\n - Neighbors: %d \n - Samples  : %d" %(neighbours,size)
+        print "-------------------------------"
+    tot_atoms = size * neighbours
+    xyz = np.random.uniform(-r_max,r_max,[tot_atoms,3])
+    r   = np.linalg.norm(xyz, axis=1) # Compute all R at once
+    accepted_indices = []
+    bad_indices = []
+    for i in range(len(r)):
+        if r[i] < r_max and r[i] > r_min: # Accepted range of values
+            accepted_indices.append(i)
+        else:
+            bad_indices.append(i)
+
+    # Do the missing number of atoms serially:
+    for j in bad_indices:
+        while True:
+            x,y,z = np.random.uniform(-r_max,r_max,3)
+            r = sqrt(x**2 + y**2 + z**2)
+            if r < r_max and r > r_min: # Accepted range of values
+                xyz[j,:] = [x,y,z] # Replace bad apple
+                break # Skip to next
+    # Fill output cube
+    xyz_N = np.zeros((neighbours,3,size))
+    for i in range(size):
+        xyz_N[:,:,i] = xyz[i*neighbours:(i+1)*neighbours,:]
+    if histogramPlot:
+        import matplotlib.pyplot as plt
+        plt.subplot(3,1,1);plt.hist(xyz_N[:,0,:].ravel(),bins=70);plt.subplot(3,1,2);plt.hist(xyz_N[:,1,:].ravel(),bins=70);plt.subplot(3,1,3);plt.hist(xyz_N[:,2,:].ravel(),bins=70);plt.show()
+    return xyz_N
+
+def createXYZ_uni2(r_min, r_max, size, neighbours=7, histogramPlot=False, verbose=False):
+    """
+    # Input:  Size of train and test size + number of neighbours
+    # Output: xyz-neighbours-matrix of size 'size'
+
+    Generates uniform random numbers inside a sphere directly
+    sampling with x,y,z that can be [0,r_max] with r in [r_min, r_max]
+    """
+    if verbose:
+        print "Creating XYZ-neighbor-data for:\n - Neighbors: %d \n - Samples  : %d" %(neighbours,size)
+        print "-------------------------------"
+    tot_atoms = size * neighbours
+    u = np.random.uniform(0,1,tot_atoms)
+    v = np.random.uniform(0,1,tot_atoms)
+    w = np.random.uniform(0,1,tot_atoms)
+
+    R_usq3 = (r_max-r_min) * u**(1./3.) + r_min
+    w2pi    = 2*np.pi*w
+    v_term  = np.sqrt(1-(1-2*v)**2)
+
+    xyz = np.zeros((tot_atoms,3))
+    xyz[:,0] = R_usq3 * v_term * np.cos(w2pi)
+    xyz[:,1] = R_usq3 * v_term * np.sin(w2pi)
+    xyz[:,2] = R_usq3 * (1-2*v)
+
+    # Fill output cube
+    xyz_N = np.zeros((neighbours,3,size))
+    for i in range(size):
+        xyz_N[:,:,i] = xyz[i*neighbours:(i+1)*neighbours,:]
+
+    if histogramPlot:
+        import matplotlib.pyplot as plt
+        plt.subplot(3,1,1);plt.hist(xyz_N[:,0,:].ravel(),bins=70);plt.subplot(3,1,2);plt.hist(xyz_N[:,1,:].ravel(),bins=70);plt.subplot(3,1,3);plt.hist(xyz_N[:,2,:].ravel(),bins=70);plt.show()
+    return xyz_N
+
+def createTrainData(size, neighbours, PES, verbose=False):
     if PES == PES_Stillinger_Weber:
         sigma       = 2.0951
         r_low       = 0.85 * sigma
         r_high      = 1.8  * sigma - 1E-8 # SW has a divide by zero at exactly cutoff
-        xyz_N = createXYZ(r_low, r_high, size, neighbors, verbose=verbose)
+        xyz_N = createXYZ(r_low, r_high, size, neighbours, verbose=verbose)
         Ep    = potentialEnergyGenerator(xyz_N, PES)
         Ep    = Ep.reshape([size,1])
 
@@ -203,7 +277,7 @@ def checkAndMaybeLoadPrevTrainData(filename, no_load=False):
     else:
         return False, None, filename
 
-def createTrainDataDump(size, neighbors, PES, filename, only_concatenate=False, verbose=False, no_load=False):
+def createTrainDataDump(size, neighbours, PES, filename, only_concatenate=False, verbose=False, no_load=False):
     # Check if file exist and in case, ask if it should be loaded
     filesLoadedBool, prev_data, filename = checkAndMaybeLoadPrevTrainData(filename, no_load)
     if only_concatenate:
@@ -222,7 +296,7 @@ def createTrainDataDump(size, neighbors, PES, filename, only_concatenate=False, 
             sigma       = 2.0951 # 1.0
             r_low       = 0.85 * sigma # Shortest possible dist between atom i and neighbor
             r_high      = 1.8 * sigma - 1E-10 # SW has a divide by zero at exactly cutoff
-            xyz_N_train = createXYZ(r_low, r_high, size, neighbors, verbose=verbose)
+            xyz_N_train = createXYZ(r_low, r_high, size, neighbours, verbose=verbose)
             if verbose:
                 sys.stdout.write('\r' + ' '*80) # White out line
                 sys.stdout.write('\rComputing potential energy.')
@@ -249,7 +323,7 @@ def createTrainDataDump(size, neighbors, PES, filename, only_concatenate=False, 
             sigma       = 1.0
             r_low       = 0.9 * sigma
             r_high      = 1.6 * sigma
-            xyz_N_train = createXYZ(r_low, r_high, size, neighbors, verbose=verbose)
+            xyz_N_train = createXYZ(r_low, r_high, size, neighbours, verbose=verbose)
             if verbose:
                 sys.stdout.write('\r' + ' '*80) # White out line
                 sys.stdout.write('\rComputing potential energy.')
@@ -293,12 +367,12 @@ def createTrainDataDump(size, neighbors, PES, filename, only_concatenate=False, 
 def createDataDumpBehlerSi():
         PES         = PES_Stillinger_Weber
         size        = 200000
-        neighbors   = 10
+        neighbours   = 10
         sigma       = 2.0951 # 1.0
         r_low       = 0.85 * sigma
         r_high      = 1.8  * sigma - 1E-8 # SW has a divide by zero at exactly cutoff
 
-        xyz_N_train    = createXYZ(r_low, r_high, size, neighbors, verbose=True)
+        xyz_N_train    = createXYZ(r_low, r_high, size, neighbours, verbose=True)
         Ep             = potentialEnergyGenerator(xyz_N_train, PES)
         params, nmbr_G = generate_symmfunc_input_Si_Behler()
         xTrain         = np.zeros((size, nmbr_G))
@@ -523,9 +597,9 @@ def testAngularInvarianceEpAndSymmFuncs():
     r_low     = 0.85 * sigma
     r_high    = 1.8  * sigma - 1E-8 # SW has a divide by zero at exactly cutoff
     size      = 1
-    neighbors = 8
+    neighbours = 8
     PES       = PES_Stillinger_Weber
-    xyz_N     = createXYZ(r_low, r_high, size, neighbors, verbose=False) # size = 10, neigh = 5
+    xyz_N     = createXYZ(r_low, r_high, size, neighbours, verbose=False) # size = 10, neigh = 5
     Ep0       = potentialEnergyGenerator(xyz_N, PES)
     G_funcs, nmbr_G = generate_symmfunc_input_Si_Behler()
     symm_func_vec0  = np.zeros((size, nmbr_G))
@@ -555,13 +629,13 @@ if __name__ == '__main__':
     Suggestion: Only have ONE option set to True at the time.
                 (not an absolute rule!)
     """
-    # Based on random structures, fixed/variable number of neighbors
+    # Based on random structures, fixed/variable number of neighbours
     dumpToFile         = False
-    dumpMultiple       = False
+    dumpMultiple       = True
 
     # Structures from SW run in lammps
-    xyz_to_neigh_lists = True
-    dumpXYZ_file       = True # From own algo: "readXYZ_Files"
+    xyz_to_neigh_lists = False
+    dumpXYZ_file       = False # From own algo: "readXYZ_Files"
 
     # Unit tests
     testAngSymm        = False
@@ -577,8 +651,8 @@ if __name__ == '__main__':
         """
         other_info = "" # i.e. "no_3_body"
         cutoff         = 3.77118 # Stillinger-Weber
-        samples_per_dt = 1       # Integer value or "all" (dont use "all" for very small systems!)
-        test_boundary  = False   # Just use atoms wherever they are
+        samples_per_dt = 50       # Integer value or "all" (dont use "all" for very small systems!)
+        test_boundary  = True   # Just use atoms wherever they are
         file_path = "Important_data/Test_nn/enfil_sw_%sp%s.xyz" %(n_atoms,other_info)
         save_file = "Important_data/neigh_list_from_xyz_%sp%s.txt" %(n_atoms,other_info)
         readXYZ_Files(file_path, save_file, samples_per_dt, cutoff, test_boundary)
@@ -604,57 +678,60 @@ if __name__ == '__main__':
         if True:
             # This is SW
             size = 50000
-            neighbors = 2
+            neighbours = 2
             # filename = "stillinger-weber-symmetry-data.txt"
-            filename  = "SW_train_rs_%s_n%s.txt" %(str(size), str(neighbors))
+            filename  = "SW_train_rs_%s_n%s.txt" %(str(size), str(neighbours))
             print "When run directly (like now), this file dumps training data to file:"
             print '"%s"' %filename
             print "-------------------------------"
-            print "Neighbors", neighbors
+            print "Neighbors", neighbours
             print "-------------------------------"
             PES = PES_Stillinger_Weber
             t0 = timer()
-            createTrainDataDump(size, neighbors, PES, filename, \
+            createTrainDataDump(size, neighbours, PES, filename, \
                                 only_concatenate=False, verbose=True)
             t1 = timer() - t0
             print "\nComputation took: %.2f seconds" %t1
         else:
             # This is LJ
             size = 10000
-            neighbors = 8
+            neighbours = 8
             # filename = "stillinger-weber-symmetry-data.txt"
-            filename  = "LJ_train_rs_%s_n%s.txt" %(str(size), str(neighbors))
+            filename  = "LJ_train_rs_%s_n%s.txt" %(str(size), str(neighbours))
             print "When run directly (like now), this file dumps training data to file:"
             print '"%s"' %filename
             print "-------------------------------"
-            print "Neighbors", neighbors
+            print "Neighbors", neighbours
             print "-------------------------------"
             PES       = PES_Lennard_Jones
             t0 = timer()
-            createTrainDataDump(size, neighbors, PES, filename, \
+            createTrainDataDump(size, neighbours, PES, filename, \
                                 only_concatenate=False, verbose=True)
             t1 = timer() - t0
             print "\nComputation took: %.2f seconds" %t1
 
     if dumpMultiple:
-        size = 500 # PER single value in neigh_list
-        neigh_list = [4]*2 + [5]*6 + [6]*13 + [7]*14 + [8]*9 + [9]*3 + [10] # len: 48
+        size = 200 # PER single value in neigh_list
+        # The list below matches the distribution of neighbours in SW run at "standard settings":
+        # neigh_list = [4]*2 + [5]*6 + [6]*13 + [7]*14 + [8]*9 + [9]*3 + [10] # len: 48
+        # The list below seeks to add more system states that are unlikely to be sampled from an actual simulation
+        neigh_list = [4]*2 + [5]*6 + [6]*2 + [7]*3 + [8]*9 + [9]*3 + [10] # len: 26
         # neigh_list = [1,2,2,2]
         t0_tot = timer()
         PES = PES_Stillinger_Weber
-        for ID,neighbors in enumerate(neigh_list):
-            filename  = "SW_train_%s_n%s_%s.txt" %(str(size), str(neighbors), str(ID))
+        for ID,neighbours in enumerate(neigh_list):
+            filename  = "SW_train_%s_n%s_%s.txt" %(str(size), str(neighbours), str(ID))
             print "When run directly (like now), this file dumps training data to file:"
             print '"%s"' %filename
             print "-------------------------------"
-            print "Neighbors", neighbors
+            print "Neighbors", neighbours
             print "-------------------------------"
             t0  = timer()
-            createTrainDataDump(size, neighbors, PES, filename, \
+            createTrainDataDump(size, neighbours, PES, filename, \
                                 only_concatenate=False, verbose=True, \
                                 no_load=True)
             t1 = timer() - t0
-            print "\nComputation of %d neighbors took: %.2f seconds" %(neighbors,t1)
+            print "\nComputation of %d neighbours took: %.2f seconds" %(neighbours,t1)
         t1 = timer() - t0_tot
         # Load all files into one master file
         createTrainDataDump(0, 0, PES, "SW_train_manyneigh_%d.txt" %(size*len(neigh_list)), \
