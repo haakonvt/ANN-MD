@@ -651,7 +651,7 @@ if __name__ == '__main__':
         """
         other_info = "" # i.e. "no_3_body"
         cutoff         = 3.77118 # Stillinger-Weber
-        samples_per_dt = 5       # Integer value or "all" (dont use "all" for very small systems!)
+        samples_per_dt = 2       # Integer value or "all" (dont use "all" for very small systems!)
         test_boundary  = True   # Just use atoms wherever they are
         file_path = "Important_data/Test_nn/enfil_sw_%sp%s.xyz" %(n_atoms,other_info)
         save_file = "Important_data/neigh_list_from_xyz_%sp%s.txt" %(n_atoms,other_info)
@@ -711,7 +711,7 @@ if __name__ == '__main__':
             print "\nComputation took: %.2f seconds" %t1
 
     if dumpMultiple:
-        size = 200 # PER single value in neigh_list
+        size = 100 # PER single value in neigh_list
         # The list below matches the distribution of neighbours in SW run at "standard settings":
         # neigh_list = [4]*2 + [5]*6 + [6]*13 + [7]*14 + [8]*9 + [9]*3 + [10] # len: 48
         # The list below seeks to add more system states that are unlikely to be sampled from an actual simulation
