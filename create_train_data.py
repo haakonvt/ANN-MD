@@ -112,7 +112,7 @@ def potentialEnergyGenerator(xyz_N, PES):
 def potentialEnergyGeneratorSingleNeigList(xyz_i, PES):
     return PES(xyz_i)
 
-def createXYZ(r_min, r_max, size, neighbours=7, histogramPlot=False, verbose=False):
+def createXYZ_biased(r_min, r_max, size, neighbours=7, histogramPlot=False, verbose=False):
     """
     # Input:  Size of train and test size + number of neighbours
     # Output: xyz-neighbours-matrix of size 'size'
@@ -219,7 +219,7 @@ def createTrainData(size, neighbours, PES, verbose=False):
         sigma       = 2.0951
         r_low       = 0.85 * sigma
         r_high      = 1.8  * sigma - 1E-8 # SW has a divide by zero at exactly cutoff
-        xyz_N = createXYZ(r_low, r_high, size, neighbours, verbose=verbose)
+        xyz_N = createXYZ_uni2(r_low, r_high, size, neighbours, verbose=verbose)
         Ep    = potentialEnergyGenerator(xyz_N, PES)
         Ep    = Ep.reshape([size,1])
 
@@ -296,7 +296,7 @@ def createTrainDataDump(size, neighbours, PES, filename, only_concatenate=False,
             sigma       = 2.0951 # 1.0
             r_low       = 0.85 * sigma # Shortest possible dist between atom i and neighbor
             r_high      = 1.8 * sigma - 1E-10 # SW has a divide by zero at exactly cutoff
-            xyz_N_train = createXYZ(r_low, r_high, size, neighbours, verbose=verbose)
+            xyz_N_train = createXYZ_uni2(r_low, r_high, size, neighbours, verbose=verbose)
             if verbose:
                 sys.stdout.write('\r' + ' '*80) # White out line
                 sys.stdout.write('\rComputing potential energy.')
@@ -323,7 +323,7 @@ def createTrainDataDump(size, neighbours, PES, filename, only_concatenate=False,
             sigma       = 1.0
             r_low       = 0.9 * sigma
             r_high      = 1.6 * sigma
-            xyz_N_train = createXYZ(r_low, r_high, size, neighbours, verbose=verbose)
+            xyz_N_train = createXYZ_uni2(r_low, r_high, size, neighbours, verbose=verbose)
             if verbose:
                 sys.stdout.write('\r' + ' '*80) # White out line
                 sys.stdout.write('\rComputing potential energy.')
@@ -372,7 +372,7 @@ def createDataDumpBehlerSi():
         r_low       = 0.85 * sigma
         r_high      = 1.8  * sigma - 1E-8 # SW has a divide by zero at exactly cutoff
 
-        xyz_N_train    = createXYZ(r_low, r_high, size, neighbours, verbose=True)
+        xyz_N_train    = createXYZ_uni2(r_low, r_high, size, neighbours, verbose=True)
         Ep             = potentialEnergyGenerator(xyz_N_train, PES)
         params, nmbr_G = generate_symmfunc_input_Si_Behler()
         xTrain         = np.zeros((size, nmbr_G))
@@ -599,7 +599,7 @@ def testAngularInvarianceEpAndSymmFuncs():
     size      = 1
     neighbours = 8
     PES       = PES_Stillinger_Weber
-    xyz_N     = createXYZ(r_low, r_high, size, neighbours, verbose=False) # size = 10, neigh = 5
+    xyz_N     = createXYZ_uni2(r_low, r_high, size, neighbours, verbose=False) # size = 10, neigh = 5
     Ep0       = potentialEnergyGenerator(xyz_N, PES)
     G_funcs, nmbr_G = generate_symmfunc_input_Si_Behler()
     symm_func_vec0  = np.zeros((size, nmbr_G))
@@ -631,11 +631,11 @@ if __name__ == '__main__':
     """
     # Based on random structures, fixed/variable number of neighbours
     dumpToFile         = False
-    dumpMultiple       = True
+    dumpMultiple       = False
 
     # Structures from SW run in lammps
-    xyz_to_neigh_lists = False
-    dumpXYZ_file       = False # From own algo: "readXYZ_Files"
+    xyz_to_neigh_lists = True
+    dumpXYZ_file       = True # From own algo: "readXYZ_Files"
 
     # Unit tests
     testAngSymm        = False
@@ -651,7 +651,7 @@ if __name__ == '__main__':
         """
         other_info = "" # i.e. "no_3_body"
         cutoff         = 3.77118 # Stillinger-Weber
-        samples_per_dt = 50       # Integer value or "all" (dont use "all" for very small systems!)
+        samples_per_dt = 5       # Integer value or "all" (dont use "all" for very small systems!)
         test_boundary  = True   # Just use atoms wherever they are
         file_path = "Important_data/Test_nn/enfil_sw_%sp%s.xyz" %(n_atoms,other_info)
         save_file = "Important_data/neigh_list_from_xyz_%sp%s.txt" %(n_atoms,other_info)
