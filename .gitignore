@@ -2,4 +2,3 @@
 *.pyc
 
 # Ignore data-files, typically .txt
-*.txt

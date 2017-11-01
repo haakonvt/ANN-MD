@@ -65,8 +65,8 @@ if __name__ == '__main__':
     Note: The pruned files can be combined with "dumpMultiple" in "create_train_data.py"
     OBS:  Filename and specific settings MUST be set before running.
     """
-    N_max        = 19999
-    filename     = "SW_train_xyz_1728p_19999"
+    N_max        = 20010
+    filename     = "SW_train_xyz_2048p_20010"
     symm_vecs,Ep = load_symm_vector(filename+".txt",max_to_load=N_max)#int(sys.argv[1]))
     pruned_data, pruned_Ep = compare_symm_funcs(symm_vecs, Ep)
 

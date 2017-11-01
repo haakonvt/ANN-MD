@@ -651,7 +651,7 @@ if __name__ == '__main__':
         """
         other_info = "" # i.e. "no_3_body"
         cutoff         = 3.77118 # Stillinger-Weber
-        samples_per_dt = 2       # Integer value or "all" (dont use "all" for very small systems!)
+        samples_per_dt = 10       # Integer value or "all" (dont use "all" for very small systems!)
         test_boundary  = True   # Just use atoms wherever they are
         file_path = "Important_data/Test_nn/enfil_sw_%sp%s.xyz" %(n_atoms,other_info)
         save_file = "Important_data/neigh_list_from_xyz_%sp%s.txt" %(n_atoms,other_info)

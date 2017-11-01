@@ -1,0 +1,15 @@
+This neural network potential can be used for silicon up to 750 Kelvin.
+
+
+
+
+Last 20 000 epochs (using loaded graph):
+
+    1/20000. RMSE: train: 0.00294783, test:  0.0028406        
+ 7003/20000. RMSE: train: 0.00280391, test: 0.00414033       
+10290/20000. RMSE: train: 0.00266201, test: 0.00291439      
+12437/20000. RMSE: train: 0.00258777, test: 0.00211173      
+15824/20000. RMSE: train: 0.00253314, test: 0.00187416      
+16247/20000. RMSE: train: 0.00249246, test:  0.0022982      
+19545/20000. RMSE: train: 0.00245452, test: 0.00257156      
+20000/20000. RMSE: train: 0.00286822, test: 0.00637147
