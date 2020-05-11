@@ -7,3 +7,6 @@ Some examples of how the neural network approximates a function of two variables
 
 1. https://www.youtube.com/watch?v=jxhNaDR5hlE
 2. https://www.youtube.com/watch?v=X3RO9oHPD-A
+
+
+## Warning/FYI: This repo is severely outdated!
